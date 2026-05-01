@@ -75,6 +75,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
             artist={a}
             fans={state.fans[a.id] || []}
             songs={state.songsByArtist[a.id] || []}
+            comments={(state.commentsByArtist || {})[a.id] || []}
             currentUser={currentUser}
             onToggleFan={() => dispatch({ type: "toggleFan", artistId: a.id, user: currentUser })}
             onClick={() => onArtistClick(a)}
@@ -155,7 +156,7 @@ function Stat({ label, value }) {
 }
 
 // — Artist card ————————————————————————
-function ArtistCard({ artist, fans, songs, currentUser, onToggleFan, onClick, onAddSong }) {
+function ArtistCard({ artist, fans, songs, comments, currentUser, onToggleFan, onClick, onAddSong }) {
   const isFan = fans.includes(currentUser);
   const tint = window.STAGE_TINTS[artist.stage];
   // Top 4 songs by hearts (fall back to first 4 added)
@@ -259,11 +260,17 @@ function ArtistCard({ artist, fans, songs, currentUser, onToggleFan, onClick, on
               }}>BE THE FIRST FAN</span>
             )}
           </div>
-          <div style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-            color: "rgba(244, 234, 216, 0.55)",
-          }}>
-            {songs.length > 0 ? `♪ ${songs.length}` : "+ song"}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {comments.length > 0 && (
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                color: "rgba(244, 234, 216, 0.45)",
+              }}>✦ {comments.length}</span>
+            )}
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+              color: "rgba(244, 234, 216, 0.55)",
+            }}>{songs.length > 0 ? `♪ ${songs.length}` : "+ song"}</span>
           </div>
         </div>
       </div>

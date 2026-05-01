@@ -57,6 +57,31 @@ function appReducer(state, action) {
         },
       };
     }
+    case "addComment": {
+      const prev = state.commentsByArtist[action.artistId] || [];
+      return {
+        ...state,
+        commentsByArtist: {
+          ...state.commentsByArtist,
+          [action.artistId]: [...prev, {
+            id: `cm-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            text: action.text,
+            author: action.user,
+            addedAt: Date.now(),
+          }],
+        },
+      };
+    }
+    case "deleteComment": {
+      const prev = state.commentsByArtist[action.artistId] || [];
+      return {
+        ...state,
+        commentsByArtist: {
+          ...state.commentsByArtist,
+          [action.artistId]: prev.filter(c => c.id !== action.commentId),
+        },
+      };
+    }
     case "loadFromStorage":
       return { ...state, ...action.payload };
     default:
@@ -66,7 +91,7 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  return { fans: {}, songsByArtist: {}, currentUser: "" };
+  return { fans: {}, songsByArtist: {}, commentsByArtist: {}, currentUser: "" };
 }
 
 const STORAGE_KEY = "elements26-songsfans-v2";
@@ -101,6 +126,7 @@ function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         fans: state.fans,
         songsByArtist: state.songsByArtist,
+        commentsByArtist: state.commentsByArtist,
         currentUser: state.currentUser,
       }));
     } catch {}

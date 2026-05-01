@@ -6,6 +6,7 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
   if (!artist) return null;
   const fans = state.fans[artist.id] || [];
   const songs = state.songsByArtist[artist.id] || [];
+  const comments = (state.commentsByArtist || {})[artist.id] || [];
   const isFan = fans.includes(currentUser);
   const tint = window.STAGE_TINTS[artist.stage];
 
@@ -145,9 +146,139 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
             </div>
           )}
         </div>
+
+        {/* Comments */}
+        <CommentsSection
+          comments={comments}
+          currentUser={currentUser}
+          onAdd={text => dispatch({ type: "addComment", artistId: artist.id, user: currentUser, text })}
+          onDelete={id => dispatch({ type: "deleteComment", artistId: artist.id, commentId: id })}
+        />
       </div>
     </window.Modal>
   );
+}
+
+function CommentsSection({ comments, currentUser, onAdd, onDelete }) {
+  const [draft, setDraft] = useStateA("");
+  const sorted = [...comments].sort((a, b) => b.addedAt - a.addedAt);
+
+  function submit() {
+    const text = draft.trim();
+    if (!text || !currentUser) return;
+    onAdd(text);
+    setDraft("");
+  }
+
+  function handleKey(e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+  }
+
+  return (
+    <div style={{ padding: "20px 28px 32px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <h3 style={{
+        fontFamily: "'Bricolage Grotesque', serif", fontWeight: 600,
+        fontSize: 18, color: "#F4EAD8", margin: "0 0 16px", letterSpacing: "-0.01em",
+      }}>Notes</h3>
+
+      {/* Input */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        {currentUser && <window.Avatar name={currentUser} size={32}/>}
+        <div style={{ flex: 1 }}>
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder={currentUser ? "Leave a note… (⌘↵ to post)" : "Pick a profile to comment"}
+            disabled={!currentUser}
+            rows={2}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 4, padding: "10px 12px",
+              color: "#F4EAD8", fontSize: 13,
+              fontFamily: "'Inter Tight', sans-serif",
+              resize: "none", outline: "none",
+              opacity: currentUser ? 1 : 0.5,
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+            <button
+              onClick={submit}
+              disabled={!draft.trim() || !currentUser}
+              style={{
+                padding: "6px 16px", borderRadius: 4,
+                background: draft.trim() && currentUser ? "#E8C77A" : "rgba(255,255,255,0.08)",
+                color: draft.trim() && currentUser ? "#0E0B08" : "rgba(244,234,216,0.4)",
+                border: "none", cursor: draft.trim() && currentUser ? "pointer" : "not-allowed",
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 700,
+                transition: "all 0.15s",
+              }}
+            >Post</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Comment list */}
+      {sorted.length === 0 ? (
+        <div style={{
+          padding: "20px 0", textAlign: "center",
+          color: "rgba(244, 234, 216, 0.3)",
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+          letterSpacing: "0.1em",
+        }}>NO NOTES YET</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {sorted.map(c => (
+            <div key={c.id} style={{
+              display: "flex", gap: 10, alignItems: "flex-start",
+            }}>
+              <window.Avatar name={c.author} size={28}/>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                  <span style={{
+                    fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+                    color: "#F4EAD8",
+                  }}>{c.author}</span>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                    color: "rgba(244, 234, 216, 0.35)",
+                  }}>{fmtAge(c.addedAt)}</span>
+                </div>
+                <p style={{
+                  margin: 0, fontSize: 13, color: "rgba(244, 234, 216, 0.85)",
+                  fontFamily: "'Inter Tight', sans-serif", lineHeight: 1.5,
+                  wordBreak: "break-word",
+                }}>{c.text}</p>
+              </div>
+              {c.author === currentUser && (
+                <button onClick={() => onDelete(c.id)} style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "rgba(244,234,216,0.3)", fontSize: 16, lineHeight: 1,
+                  padding: "2px 4px", flexShrink: 0,
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = "#E8553F"}
+                onMouseLeave={e => e.currentTarget.style.color = "rgba(244,234,216,0.3)"}
+                >×</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fmtAge(ts) {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
 function CollageHero({ tracks, fallback }) {
