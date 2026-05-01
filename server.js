@@ -1,5 +1,7 @@
 const express = require("express");
 const fs = require("fs");
+const crypto = require("crypto");
+const https = require("https");
 const path = require("path");
 const { Pool } = require("pg");
 
@@ -15,7 +17,174 @@ const pool = new Pool({
 });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname), {
+	setHeaders(res, filePath) {
+		if (filePath.endsWith(".jsx")) {
+			res.setHeader("Content-Type", "application/javascript");
+		}
+	},
+}));
+
+const spotifyOAuthStates = new Map();
+let spotifyClientToken = null;
+
+function getBaseUrl(req) {
+	const configured = process.env.APP_BASE_URL || process.env.PUBLIC_URL;
+	if (configured) return configured.replace(/\/$/, "");
+	return `${req.protocol}://${req.get("host")}`;
+}
+
+function getSpotifyRedirectUri(req) {
+	return (
+		process.env.SPOTIFY_REDIRECT_URI ||
+		`${getBaseUrl(req)}/api/music/spotify/callback`
+	);
+}
+
+function requestJson(url, options = {}, body = null) {
+	return new Promise((resolve, reject) => {
+		const request = https.request(url, options, (response) => {
+			let data = "";
+			response.on("data", (chunk) => {
+				data += chunk;
+			});
+			response.on("end", () => {
+				let parsed = null;
+				try {
+					parsed = data ? JSON.parse(data) : {};
+				} catch (error) {
+					return reject(new Error(`Invalid JSON from ${url}: ${data}`));
+				}
+				if (response.statusCode < 200 || response.statusCode >= 300) {
+					const message =
+						parsed?.error_description ||
+						parsed?.error?.message ||
+						parsed?.error ||
+						data ||
+						response.statusMessage;
+					return reject(new Error(`HTTP ${response.statusCode}: ${message}`));
+				}
+				resolve(parsed);
+			});
+		});
+		request.on("error", reject);
+		if (body) request.write(body);
+		request.end();
+	});
+}
+
+async function getSpotifyClientToken() {
+	if (
+		spotifyClientToken &&
+		spotifyClientToken.expiresAt > Date.now() + 60 * 1000
+	) {
+		return spotifyClientToken.accessToken;
+	}
+
+	const { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } = process.env;
+	if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
+		throw new Error("Spotify search is not configured.");
+	}
+
+	const body = "grant_type=client_credentials";
+	const auth = Buffer.from(
+		`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`
+	).toString("base64");
+	const data = await requestJson(
+		"https://accounts.spotify.com/api/token",
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Basic ${auth}`,
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Content-Length": Buffer.byteLength(body),
+			},
+		},
+		body
+	);
+
+	spotifyClientToken = {
+		accessToken: data.access_token,
+		expiresAt: Date.now() + data.expires_in * 1000,
+	};
+	return spotifyClientToken.accessToken;
+}
+
+function parseCookies(req) {
+	const raw = req.headers.cookie || "";
+	return raw.split(";").reduce((cookies, part) => {
+		const index = part.indexOf("=");
+		if (index === -1) return cookies;
+		const key = part.slice(0, index).trim();
+		const value = part.slice(index + 1).trim();
+		cookies[key] = decodeURIComponent(value);
+		return cookies;
+	}, {});
+}
+
+function setSpotifyTokenCookie(res, accessToken, expiresIn) {
+	const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+	res.setHeader(
+		"Set-Cookie",
+		`spotify_access_token=${encodeURIComponent(
+			accessToken
+		)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.max(
+			60,
+			expiresIn || 3600
+		)}${secure}`
+	);
+}
+
+async function spotifyApi(pathname, accessToken, options = {}) {
+	const body = options.body ? JSON.stringify(options.body) : null;
+	return requestJson(
+		`https://api.spotify.com/v1${pathname}`,
+		{
+			method: options.method || "GET",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				...(body ? { "Content-Type": "application/json" } : {}),
+				...(body ? { "Content-Length": Buffer.byteLength(body) } : {}),
+			},
+		},
+		body
+	);
+}
+
+function normalizeMusicTrack(row) {
+	return {
+		id: row.id,
+		showId: row.show_id,
+		contributorName: row.contributor_name,
+		spotifyTrackId: row.spotify_track_id,
+		spotifyUri: row.spotify_uri,
+		spotifyUrl: row.spotify_url,
+		title: row.title,
+		artists: row.artists || [],
+		album: row.album,
+		artworkUrl: row.artwork_url,
+		durationMs: row.duration_ms,
+		isrc: row.isrc,
+		genre: row.genre,
+		lineupArtist: row.lineup_artist,
+		timestamp: row.timestamp,
+	};
+}
+
+function mapSpotifyTrack(item) {
+	const image = item.album?.images?.[0] || item.album?.images?.slice(-1)[0] || null;
+	return {
+		spotifyTrackId: item.id,
+		spotifyUri: item.uri,
+		spotifyUrl: item.external_urls?.spotify || "",
+		title: item.name,
+		artists: (item.artists || []).map((artist) => artist.name),
+		album: item.album?.name || "",
+		artworkUrl: image?.url || "",
+		durationMs: item.duration_ms || 0,
+		isrc: item.external_ids?.isrc || "",
+	};
+}
 
 async function initDb() {
 	await pool.query(`
@@ -35,6 +204,27 @@ async function initDb() {
 			name TEXT NOT NULL,
 			text TEXT NOT NULL,
 			timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+	`);
+
+	await pool.query(`
+		CREATE TABLE IF NOT EXISTS music_tracks (
+			id BIGSERIAL PRIMARY KEY,
+			show_id TEXT NOT NULL,
+			contributor_name TEXT NOT NULL,
+			spotify_track_id TEXT NOT NULL,
+			spotify_uri TEXT NOT NULL,
+			spotify_url TEXT NOT NULL,
+			title TEXT NOT NULL,
+			artists JSONB NOT NULL DEFAULT '[]'::jsonb,
+			album TEXT NOT NULL DEFAULT '',
+			artwork_url TEXT NOT NULL DEFAULT '',
+			duration_ms INTEGER NOT NULL DEFAULT 0,
+			isrc TEXT NOT NULL DEFAULT '',
+			genre TEXT NOT NULL DEFAULT '',
+			lineup_artist TEXT NOT NULL DEFAULT '',
+			timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (show_id, spotify_track_id)
 		);
 	`);
 }
@@ -123,6 +313,7 @@ function parseScheduleRows(csvText) {
 	const timeIndex = headers.indexOf("time");
 	const stageIndex = headers.indexOf("stage");
 	const artistIndex = headers.indexOf("artist");
+	const genreIndex = headers.indexOf("genre");
 	const idIndex = headers.indexOf("id");
 
 	const rows = [];
@@ -132,12 +323,42 @@ function parseScheduleRows(csvText) {
 		const time = (values[timeIndex >= 0 ? timeIndex : 1] || "").trim();
 		const stage = (values[stageIndex >= 0 ? stageIndex : 2] || "").trim();
 		const artist = (values[artistIndex >= 0 ? artistIndex : 3] || "").trim();
+		const genre = (values[genreIndex >= 0 ? genreIndex : 4] || "").trim();
 		const sourceId = (values[idIndex >= 0 ? idIndex : -1] || "").trim();
 		if (day && time && stage && artist) {
-			rows.push({ day, time, stage, artist, sourceId });
+			rows.push({ day, time, stage, artist, genre, sourceId });
 		}
 	}
 	return rows;
+}
+
+function getScheduleRows() {
+	const scheduleCsvPath = path.join(__dirname, "ultra_2026_inferred_schedule.csv");
+	if (!fs.existsSync(scheduleCsvPath)) return [];
+	return parseScheduleRows(fs.readFileSync(scheduleCsvPath, "utf8"));
+}
+
+function getScheduleByShowId() {
+	const rows = getScheduleRows();
+	const counters = new Map();
+	const shows = new Map();
+
+	for (const row of rows) {
+		const dayNum = getDayNumber(row.day);
+		const explicitId = normalizeExplicitId(row.sourceId);
+		let showId = explicitId;
+		if (!showId) {
+			const stageSlug = toSlug(row.stage);
+			const artistSlug = toSlug(row.artist);
+			const key = `${dayNum}|${stageSlug}|${artistSlug}`;
+			const occurrence = (counters.get(key) || 0) + 1;
+			counters.set(key, occurrence);
+			showId = `show_${dayNum}_${stageSlug}_${artistSlug}_${occurrence}`;
+		}
+		shows.set(showId, row);
+	}
+
+	return shows;
 }
 
 function buildShowIdMappings(rows) {
@@ -264,16 +485,261 @@ app.post("/api/comments/delete", async (req, res) => {
 	res.json({ ok: true });
 });
 
+app.get("/api/music/search", async (req, res) => {
+	try {
+		const showId = String(req.query.showId || "");
+		const userQuery = String(req.query.q || "").trim();
+		const schedule = getScheduleByShowId();
+		const show = schedule.get(showId);
+		const lineupArtist = show?.artist || "";
+		const query = [lineupArtist, userQuery].filter(Boolean).join(" ");
+
+		if (!query) {
+			return res.status(400).json({ error: "Search query is required." });
+		}
+
+		const token = await getSpotifyClientToken();
+		const params = new URLSearchParams({
+			q: query,
+			type: "track",
+			limit: "10",
+			market: "US",
+		});
+		const data = await spotifyApi(`/search?${params.toString()}`, token);
+		res.json({
+			tracks: (data.tracks?.items || []).map(mapSpotifyTrack),
+			query,
+		});
+	} catch (error) {
+		res.status(500).json({ error: error.message });
+	}
+});
+
+app.get("/api/music/tracks", async (_req, res) => {
+	const result = await pool.query(
+		"SELECT * FROM music_tracks ORDER BY timestamp ASC, id ASC"
+	);
+	res.json({ tracks: result.rows.map(normalizeMusicTrack) });
+});
+
+app.get("/api/music/tracks/show/:showId", async (req, res) => {
+	const result = await pool.query(
+		"SELECT * FROM music_tracks WHERE show_id = $1 ORDER BY timestamp ASC, id ASC",
+		[req.params.showId]
+	);
+	res.json({ tracks: result.rows.map(normalizeMusicTrack) });
+});
+
+app.post("/api/music/tracks", async (req, res) => {
+	const {
+		showId,
+		contributorName,
+		spotifyTrackId,
+		spotifyUri,
+		spotifyUrl,
+		title,
+		artists = [],
+		album = "",
+		artworkUrl = "",
+		durationMs = 0,
+		isrc = "",
+	} = req.body || {};
+
+	if (!showId || !contributorName || !spotifyTrackId || !spotifyUri || !title) {
+		return res.status(400).json({ error: "Missing required track fields." });
+	}
+
+	const schedule = getScheduleByShowId();
+	const show = schedule.get(showId);
+	const result = await pool.query(
+		`INSERT INTO music_tracks (
+			show_id, contributor_name, spotify_track_id, spotify_uri, spotify_url,
+			title, artists, album, artwork_url, duration_ms, isrc, genre, lineup_artist,
+			timestamp
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, NOW())
+		ON CONFLICT (show_id, spotify_track_id)
+		DO UPDATE SET
+			contributor_name = EXCLUDED.contributor_name,
+			spotify_uri = EXCLUDED.spotify_uri,
+			spotify_url = EXCLUDED.spotify_url,
+			title = EXCLUDED.title,
+			artists = EXCLUDED.artists,
+			album = EXCLUDED.album,
+			artwork_url = EXCLUDED.artwork_url,
+			duration_ms = EXCLUDED.duration_ms,
+			isrc = EXCLUDED.isrc,
+			genre = EXCLUDED.genre,
+			lineup_artist = EXCLUDED.lineup_artist,
+			timestamp = NOW()
+		RETURNING *`,
+		[
+			showId,
+			contributorName,
+			spotifyTrackId,
+			spotifyUri,
+			spotifyUrl || `https://open.spotify.com/track/${spotifyTrackId}`,
+			title,
+			JSON.stringify(Array.isArray(artists) ? artists : []),
+			album,
+			artworkUrl,
+			Number(durationMs) || 0,
+			isrc,
+			show?.genre || "",
+			show?.artist || "",
+		]
+	);
+	res.json({ track: normalizeMusicTrack(result.rows[0]) });
+});
+
+app.delete("/api/music/tracks/:id", async (req, res) => {
+	const contributorName = String(req.body?.contributorName || "").trim();
+	if (!contributorName) {
+		return res.status(400).json({ error: "Contributor name is required." });
+	}
+
+	const result = await pool.query(
+		"DELETE FROM music_tracks WHERE id = $1 AND contributor_name = $2 RETURNING id",
+		[req.params.id, contributorName]
+	);
+	if (!result.rowCount) {
+		return res.status(404).json({ error: "Track not found for contributor." });
+	}
+	res.json({ ok: true });
+});
+
+app.get("/api/music/genres", async (_req, res) => {
+	const result = await pool.query(`
+		SELECT
+			COALESCE(NULLIF(genre, ''), 'Uncategorized') AS genre,
+			COUNT(*)::int AS track_count,
+			COUNT(DISTINCT show_id)::int AS show_count
+		FROM music_tracks
+		GROUP BY COALESCE(NULLIF(genre, ''), 'Uncategorized')
+		ORDER BY genre ASC
+	`);
+	res.json({ genres: result.rows });
+});
+
+app.post("/api/music/export/spotify", async (req, res) => {
+	try {
+		const genre = String(req.body?.genre || "").trim();
+		if (!genre) return res.status(400).json({ error: "Genre is required." });
+
+		const cookies = parseCookies(req);
+		const accessToken = cookies.spotify_access_token;
+		if (!accessToken) {
+			const state = crypto.randomBytes(18).toString("hex");
+			spotifyOAuthStates.set(state, { genre, createdAt: Date.now() });
+			const redirectUri = getSpotifyRedirectUri(req);
+			const params = new URLSearchParams({
+				client_id: process.env.SPOTIFY_CLIENT_ID || "",
+				response_type: "code",
+				redirect_uri: redirectUri,
+				scope: "playlist-modify-private",
+				state,
+			});
+			if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+				return res.status(500).json({ error: "Spotify OAuth is not configured." });
+			}
+			return res.json({
+				requiresAuth: true,
+				authUrl: `https://accounts.spotify.com/authorize?${params.toString()}`,
+			});
+		}
+
+		const result = await pool.query(
+			`SELECT DISTINCT ON (spotify_track_id) spotify_uri
+			 FROM music_tracks
+			 WHERE COALESCE(NULLIF(genre, ''), 'Uncategorized') = $1
+			 ORDER BY spotify_track_id, timestamp ASC`,
+			[genre]
+		);
+		const uris = result.rows.map((row) => row.spotify_uri).filter(Boolean);
+		if (!uris.length) {
+			return res.status(400).json({ error: "No Spotify tracks for this genre." });
+		}
+
+		const playlist = await spotifyApi("/me/playlists", accessToken, {
+			method: "POST",
+			body: {
+				name: `Elements 2026 - ${genre}`,
+				description: `Group picks from the Elements 2026 planner.`,
+				public: false,
+			},
+		});
+
+		for (let i = 0; i < uris.length; i += 100) {
+			await spotifyApi(`/playlists/${playlist.id}/tracks`, accessToken, {
+				method: "POST",
+				body: { uris: uris.slice(i, i + 100) },
+			});
+		}
+
+		res.json({
+			ok: true,
+			playlistId: playlist.id,
+			playlistUrl: playlist.external_urls?.spotify,
+			trackCount: uris.length,
+		});
+	} catch (error) {
+		res.status(500).json({ error: error.message });
+	}
+});
+
+app.get("/api/music/spotify/callback", async (req, res) => {
+	try {
+		const code = String(req.query.code || "");
+		const state = String(req.query.state || "");
+		const saved = spotifyOAuthStates.get(state);
+		spotifyOAuthStates.delete(state);
+		if (!code || !saved || Date.now() - saved.createdAt > 10 * 60 * 1000) {
+			return res.redirect("/?spotifyExportError=invalid_state");
+		}
+
+		const redirectUri = getSpotifyRedirectUri(req);
+		const body = new URLSearchParams({
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: redirectUri,
+		}).toString();
+		const auth = Buffer.from(
+			`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+		).toString("base64");
+		const token = await requestJson(
+			"https://accounts.spotify.com/api/token",
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Basic ${auth}`,
+					"Content-Type": "application/x-www-form-urlencoded",
+					"Content-Length": Buffer.byteLength(body),
+				},
+			},
+			body
+		);
+
+		setSpotifyTokenCookie(res, token.access_token, token.expires_in);
+		res.redirect(
+			`/?spotifyExportGenre=${encodeURIComponent(saved.genre)}&spotifyAuthed=1`
+		);
+	} catch (error) {
+		res.redirect(`/?spotifyExportError=${encodeURIComponent(error.message)}`);
+	}
+});
+
 app.post("/api/clear", async (_req, res) => {
 	await pool.query("DELETE FROM attendees");
 	await pool.query("DELETE FROM comments");
+	await pool.query("DELETE FROM music_tracks");
 	res.json({ ok: true });
 });
 
 app.get("/api/export", async (_req, res) => {
-	const [attendeesResult, commentsResult] = await Promise.all([
+	const [attendeesResult, commentsResult, musicResult] = await Promise.all([
 		pool.query("SELECT show_id, attendee_name, state FROM attendees"),
 		pool.query("SELECT show_id, name, text, timestamp FROM comments"),
+		pool.query("SELECT * FROM music_tracks ORDER BY timestamp ASC, id ASC"),
 	]);
 
 	const attendees = {};
@@ -295,16 +761,27 @@ app.get("/api/export", async (_req, res) => {
 		});
 	});
 
-	res.json({ attendees, attendeeStates, comments });
+	res.json({
+		attendees,
+		attendeeStates,
+		comments,
+		musicTracks: musicResult.rows.map(normalizeMusicTrack),
+	});
 });
 
 app.post("/api/import", async (req, res) => {
-	const { attendees = {}, attendeeStates = {}, comments = {} } = req.body || {};
+	const {
+		attendees = {},
+		attendeeStates = {},
+		comments = {},
+		musicTracks = [],
+	} = req.body || {};
 
 	await pool.query("BEGIN");
 	try {
 		await pool.query("DELETE FROM attendees");
 		await pool.query("DELETE FROM comments");
+		await pool.query("DELETE FROM music_tracks");
 
 		for (const [showId, names] of Object.entries(attendees)) {
 			for (const attendeeName of names) {
@@ -326,6 +803,34 @@ app.post("/api/import", async (req, res) => {
 					[showId, comment.name, comment.text, comment.timestamp || null]
 				);
 			}
+		}
+
+		for (const track of musicTracks) {
+			await pool.query(
+				`INSERT INTO music_tracks (
+					show_id, contributor_name, spotify_track_id, spotify_uri, spotify_url,
+					title, artists, album, artwork_url, duration_ms, isrc, genre,
+					lineup_artist, timestamp
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, COALESCE($14::timestamptz, NOW()))
+				ON CONFLICT (show_id, spotify_track_id) DO NOTHING`,
+				[
+					track.showId,
+					track.contributorName,
+					track.spotifyTrackId,
+					track.spotifyUri,
+					track.spotifyUrl,
+					track.title,
+					JSON.stringify(Array.isArray(track.artists) ? track.artists : []),
+					track.album || "",
+					track.artworkUrl || "",
+					Number(track.durationMs) || 0,
+					track.isrc || "",
+					track.genre || "",
+					track.lineupArtist || "",
+					track.timestamp || null,
+				]
+			);
 		}
 
 		await pool.query("COMMIT");

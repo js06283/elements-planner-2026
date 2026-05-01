@@ -8,7 +8,7 @@ class ScheduleLoader {
 	async loadSchedule() {
 		try {
 			// Try to load the CSV file
-			const response = await fetch("ultra_2026_inferred_schedule.csv");
+			const response = await fetch("Elements_Festival_Full_Schedule__All_Days_.csv");
 			if (!response.ok) {
 				throw new Error(`Failed to load CSV: ${response.status}`);
 			}
@@ -19,7 +19,7 @@ class ScheduleLoader {
 			// Update the HTML with the real schedule
 			this.updateHTML(schedule);
 
-			console.log("Festival schedule loaded successfully:", schedule);
+			console.log("Elements 2026 schedule loaded successfully:", schedule);
 			return schedule;
 		} catch (error) {
 			console.error("Error loading schedule:", error);
@@ -63,7 +63,7 @@ class ScheduleLoader {
 				<div class="error-placeholder">
 					<div class="error-icon">🌐</div>
 					<h3>Local Development Mode</h3>
-					<p>To load the real festival schedule, you need to run this application through a local server due to browser security restrictions.</p>
+					<p>To load the Elements 2026 schedule, you need to run this application through a local server due to browser security restrictions.</p>
 					<div class="server-instructions">
 						<h4>Quick Setup:</h4>
 						<ol>
@@ -88,7 +88,7 @@ class ScheduleLoader {
 				<div class="error-placeholder">
 					<div class="error-icon">⚠️</div>
 					<h3>Failed to load schedule</h3>
-					<p>Unable to load the ULTRA schedule. Please check that the CSV file is available and try refreshing the page.</p>
+					<p>Unable to load the Elements 2026 schedule. Please check that the CSV file is available and try refreshing the page.</p>
 					<button onclick="location.reload()" class="btn-primary">Retry</button>
 				</div>
 			`;

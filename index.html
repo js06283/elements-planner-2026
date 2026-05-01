@@ -1,151 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>ULTRA</title>
-		<link rel="stylesheet" href="styles.css" />
-		<link
-			href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&display=swap"
-			rel="stylesheet"
-		/>
-		<!-- Railway DB service -->
-		<script src="railway-db-service.js"></script>
-		<!-- CSV Parser and Schedule Loader -->
-		<script src="csv-parser.js"></script>
-		<script src="load-schedule.js"></script>
-	</head>
-	<body>
-		<div class="container">
-			<header class="header">
-				<h1>ULTRA</h1>
-				<p class="interaction-hint">
-					1 click = interested, 2 clicks = must see, 3 clicks = delete
-				</p>
-				<div class="name-input-section">
-					<select id="nameSelect" class="name-select">
-						<option value="">Select a name...</option>
-						<option value="Jess">Jess</option>
-						<option value="Theo">Theo</option>
-						<option value="Andy">Andy</option>
-						<option value="Noel">Noel</option>
-						<option value="Kevin">Kevin</option>
-						<option value="Ellen">Ellen</option>
-						<option value="Cindy">Cindy</option>
-						<option value="PJ">PJ</option>
-						<option value="custom">Other (enter custom name)</option>
-					</select>
-					<input
-						type="text"
-						id="nameInput"
-						placeholder="Enter custom name..."
-						maxlength="50"
-						style="display: none"
-					/>
-					<button id="addNameBtn" class="btn-primary">Add Name</button>
-				</div>
-				<div class="view-controls">
-					<div class="day-toggles">
-						<button class="day-toggle active" data-day="all">All Days</button>
-						<button class="day-toggle" data-day="friday">Friday</button>
-						<button class="day-toggle" data-day="saturday">Saturday</button>
-						<button class="day-toggle" data-day="sunday">Sunday</button>
-					</div>
-					<div class="schedule-mode-control">
-						<label for="scheduleModeSelect">Schedule</label>
-						<select id="scheduleModeSelect" class="schedule-mode-select">
-							<option value="all">All Shows</option>
-							<option value="my">My Schedule</option>
-							<option value="group">Group Schedule</option>
-						</select>
-					</div>
-					<div class="view-toggles">
-						<button id="exportLockscreenBtn" class="btn-secondary">
-							Export Lockscreen
-						</button>
-						<button id="chronologicalToggle" class="btn-secondary">
-							Chronological
-						</button>
-						<button id="timelineToggle" class="btn-secondary">Timeline</button>
-					</div>
-				</div>
-			</header>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Elements 2026 — Songs & Fans</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #0E0B08; }
+    body { font-family: 'Inter Tight', sans-serif; color: #F4EAD8; }
+    button { font-family: inherit; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    .om-modal-backdrop { animation: fadeIn 0.2s ease both; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0E0B08; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+    select option { background: #15110D; color: #F4EAD8; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
 
-			<div class="festival-grid">
-				<!-- Loading placeholder - will be replaced by real schedule -->
-				<div class="loading-placeholder">
-					<div class="loading-spinner"></div>
-					<p>Loading ULTRA festival schedule...</p>
-				</div>
-			</div>
-		</div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-		<div id="lockscreenExportModal" class="lockscreen-modal" aria-hidden="true">
-			<div class="lockscreen-modal-backdrop" data-close-lockscreen-modal></div>
-			<div class="lockscreen-modal-panel" role="dialog" aria-modal="true" aria-labelledby="lockscreenModalTitle">
-				<div class="lockscreen-modal-header">
-					<div>
-						<h2 id="lockscreenModalTitle">Lockscreen Export</h2>
-						<p>Build a one-day iPhone lock screen PNG from your picks or the group’s picks.</p>
-					</div>
-					<button
-						type="button"
-						class="lockscreen-modal-close"
-						data-close-lockscreen-modal
-						aria-label="Close export modal"
-					>
-						×
-					</button>
-				</div>
-
-				<div class="lockscreen-modal-body">
-					<div class="lockscreen-controls">
-						<label class="lockscreen-field">
-							<span>Day</span>
-							<select id="lockscreenDaySelect"></select>
-						</label>
-						<label class="lockscreen-field">
-							<span>Schedule</span>
-							<select id="lockscreenSourceSelect">
-								<option value="all">All Shows</option>
-								<option value="my">Your Sets</option>
-								<option value="group">Group Sets</option>
-							</select>
-						</label>
-						<label class="lockscreen-field">
-							<span>Layout</span>
-							<select id="lockscreenLayoutSelect">
-								<option value="chronological">Chronological</option>
-								<option value="timeline">Timeline</option>
-							</select>
-						</label>
-
-						<div class="lockscreen-actions">
-							<button id="refreshLockscreenPreviewBtn" type="button" class="btn-secondary">
-								Refresh Preview
-							</button>
-							<button id="downloadLockscreenBtn" type="button" class="btn-primary">
-								Download PNG
-							</button>
-						</div>
-					</div>
-
-					<div class="lockscreen-preview-shell">
-						<div id="lockscreenPreviewStatus" class="lockscreen-preview-status">
-							Choose options to generate a preview.
-						</div>
-						<div class="lockscreen-preview-frame">
-							<img
-								id="lockscreenPreviewImage"
-								class="lockscreen-preview-image"
-								alt="Lockscreen export preview"
-							/>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<script src="script.js"></script>
-	</body>
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="discovery.jsx"></script>
+  <script type="text/babel" src="artist-detail.jsx"></script>
+  <script type="text/babel" src="songs-schedule.jsx"></script>
+  <script type="text/babel" src="export-sheet.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
 </html>

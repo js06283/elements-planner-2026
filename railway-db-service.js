@@ -143,13 +143,60 @@
 			return commentsMap;
 		}
 
+		async searchSpotifyTracks(showId, query) {
+			const params = new URLSearchParams({
+				showId,
+				q: query || "",
+			});
+			return this.request(`/api/music/search?${params.toString()}`);
+		}
+
+		async saveMusicTrack(track) {
+			const data = await this.request("/api/music/tracks", {
+				method: "POST",
+				body: JSON.stringify(track),
+			});
+			return data.track;
+		}
+
+		async deleteMusicTrack(trackId, contributorName) {
+			await this.request(`/api/music/tracks/${encodeURIComponent(trackId)}`, {
+				method: "DELETE",
+				body: JSON.stringify({ contributorName }),
+			});
+			return true;
+		}
+
+		async getAllMusicTracksData() {
+			const data = await this.request("/api/music/tracks");
+			const tracksMap = new Map();
+			(data.tracks || []).forEach((track) => {
+				if (!tracksMap.has(track.showId)) tracksMap.set(track.showId, []);
+				tracksMap.get(track.showId).push(track);
+			});
+			return tracksMap;
+		}
+
+		async getMusicGenres() {
+			const data = await this.request("/api/music/genres");
+			return data.genres || [];
+		}
+
+		async exportSpotifyPlaylist(genre) {
+			return this.request("/api/music/export/spotify", {
+				method: "POST",
+				body: JSON.stringify({ genre }),
+			});
+		}
+
 		async getAllData() {
-			const [attendees, states, comments] = await Promise.all([
+			const [attendees, states, comments, musicTracks] = await Promise.all([
 				this.getAllAttendeesData(),
 				this.getAllAttendeeStates(),
 				this.getAllCommentsData(),
+				this.getAllMusicTracksData(),
 			]);
-			return { attendees, states, comments };
+			return { attendees, states, comments, musicTracks };
 		}
 
 		onAttendeesChange(callback) {

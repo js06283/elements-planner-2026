@@ -1,109 +1,50 @@
-Day,Time,Stage,Artist
-Friday,3:30PM-4:20PM,Earth,MACHETE
-Friday,4:30PM-5:30PM,Earth,MADDY O'NEAL
-Friday,6:00PM-7:30PM,Earth,PAPADOSIO
-Friday,8:00PM-9:15PM,Earth,CHASE & STATUS
-Friday,9:40PM-10:55PM,Earth,CRANKDAT
-Friday,11:00PM-12:15AM,Earth,SULLIVAN KING B2B KAYZO
-Friday,12:30AM-2:00AM,Earth,ILLENIUM
-Friday,3:00PM-4:00PM,Fire,OVAN
-Friday,4:00PM-5:00PM,Fire,MISS PIPS
-Friday,5:00PM-6:00PM,Fire,RIVA + BIANCA
-Friday,6:00PM-7:15PM,Fire,4YU
-Friday,7:15PM-8:45PM,Fire,KASKADE REDUX
-Friday,9:00PM-10:00PM,Fire,LEVITY
-Friday,10:00PM-11:05PM,Fire,TAPE B
-Friday,11:15PM-12:30AM,Fire,REZZ
-Friday,12:00PM-1:15PM,Air,NEEK.O
-Friday,1:15PM-2:30PM,Air,LA VIRGEN
-Friday,2:30PM-3:45PM,Air,SARINDIPITY
-Friday,3:45PM-5:00PM,Air,OBA + FLIP
-Friday,5:00PM-6:30PM,Air,NARASHIMA
-Friday,6:30PM-8:00PM,Air,MAX LOW
-Friday,8:00PM-9:30PM,Air,LONDONBRIDGE
-Friday,9:30PM-11:00PM,Air,TORREN FOOT B2B AIRWOLF PARADISE
-Friday,11:00PM-12:30AM,Air,SIDEPIECE
-Friday,12:30AM-2:00AM,Air,WAX MOTIF
-Friday,11:15AM-12:15PM,Water,FROM EARTH TO ETHER: AN AYURVEDIC MORNING FLOW
-Friday,12:30PM-1:45PM,Water,ACE ON EARTH
-Friday,1:45PM-3:00PM,Water,MES
-Friday,3:00PM-4:00PM,Water,PATCHES.
-Friday,4:00PM-5:00PM,Water,CRUMB PIT
-Friday,5:00PM-6:00PM,Water,EATER
-Friday,6:15PM-7:15PM,Water,MEDINA
-Friday,7:15PM-8:15PM,Water,DRUNKEN KONG
-Friday,8:15PM-9:15PM,Water,MAX & DANA
-Friday,9:15PM-10:15PM,Water,DEVAULT
-Friday,10:15PM-11:30PM,Water,LAYTON GIORDANI
-Friday,11:30PM-1:00AM,Water,ELI BROWN
-Saturday,3:30PM-4:45PM,Earth,SPLINTERED SUNLIGHT
-Saturday,5:15PM-6:30PM,Earth,SNEEZY
-Saturday,7:00PM-8:15PM,Earth,BOOGIE T.RIO
-Saturday,8:45PM-9:45PM,Earth,ALLEYCVT
-Saturday,10:00PM-11:00PM,Earth,BOOGIE T
-Saturday,11:15PM-12:30AM,Earth,DJ DIESEL AKA SHAQ
-Saturday,12:45AM-2:00AM,Earth,ZEDS DEAD
-Saturday,3:00PM-4:00PM,Fire,ODD ARCANA
-Saturday,4:00PM-5:00PM,Fire,SAINT VELEZ
-Saturday,5:00PM-6:00PM,Fire,FREEZE
-Saturday,6:00PM-7:00PM,Fire,EARTH SIGNS
-Saturday,7:00PM-8:30PM,Fire,SOFI TUKKER
-Saturday,8:45PM-10:00PM,Fire,MAX STYLER
-Saturday,10:00PM-11:30PM,Fire,MAU P
-Saturday,11:30PM-1:00AM,Fire,SARA LANDRY
-Saturday,12:00PM-1:00PM,Air,OSCAR N
-Saturday,1:00PM-2:30PM,Air,HVNLEE B2B LUNA MAR
-Saturday,2:30PM-4:30PM,Air,THE ILLUSTRIOUS BLACKS
-Saturday,4:30PM-6:00PM,Air,PAPYON
-Saturday,6:00PM-7:30PM,Air,MARY DROPPINZ
-Saturday,7:30PM-9:00PM,Air,WAKYIN
-Saturday,9:00PM-11:00PM,Air,HI-LO
-Saturday,11:00PM-12:30AM,Air,VILLAGER
-Saturday,12:30AM-2:00AM,Air,NIMINO
-Saturday,11:15AM-12:15PM,Water,DHARMA INSPIRED EDM FLOW
-Saturday,12:30PM-1:45PM,Water,MEALZ
-Saturday,1:45PM-3:00PM,Water,MIKAYLI
-Saturday,3:00PM-4:15PM,Water,RAFEEKI
-Saturday,4:15PM-5:15PM,Water,CAPOCHINO
-Saturday,5:15PM-6:15PM,Water,DRINKURWATER
-Saturday,6:30PM-7:30PM,Water,MADGRRL
-Saturday,7:30PM-8:30PM,Water,CYCLOPS
-Saturday,8:30PM-9:30PM,Water,REAPER
-Saturday,9:30PM-10:30PM,Water,LAYZ
-Saturday,10:30PM-11:45PM,Water,DEATHPACT
-Saturday,11:45PM-1:00AM,Water,WOOLI
-Sunday,2:30PM-3:30PM,Earth,VINCENT ANTONE
-Sunday,3:45PM-4:45PM,Earth,MICHAL MENERT
-Sunday,5:15PM-6:15PM,Earth,MOON HOOCH
-Sunday,6:45PM-8:00PM,Earth,PRETTY LGHTS
-Sunday,8:30PM-9:45PM,Earth,SUNSQUABI
-Sunday,10:15PM-11:15PM,Earth,SURPRISE SET
-Sunday,12:15AM-1:45AM,Earth,PRETTY LGHTS (THE PRISMATIC FLEET)
-Sunday,3:00PM-4:30PM,Fire,OLAF B2B DMTR
-Sunday,4:30PM-5:45PM,Fire,LE FRONK
-Sunday,5:45PM-7:00PM,Fire,ELEMENTS B2B
-Sunday,7:00PM-8:20PM,Fire,CLAUDE VONSTROKE (THE RETURN)
-Sunday,8:30PM-9:30PM,Fire,TIPPER
-Sunday,9:45PM-11:15PM,Fire,MALAA VS MALAA'S ALTER EGO
-Sunday,11:30PM-1:00AM,Fire,DEADMAU5
-Sunday,11:15AM-12:15PM,Air,ELEMENTAL MASS MEDITATION
-Sunday,12:30PM-1:45PM,Air,REM SIMAN
-Sunday,1:45PM-3:00PM,Air,SEQUIN TYLER
-Sunday,3:00PM-4:30PM,Air,KOOPMISK FT HON JAO VIOLIN
-Sunday,4:30PM-6:00PM,Air,N2N
-Sunday,6:00PM-7:30PM,Air,GOLDEN PONY
-Sunday,7:30PM-9:00PM,Air,PAPERWATER
-Sunday,9:00PM-11:00PM,Air,LP GIOBBI
-Sunday,11:00PM-12:30AM,Air,BUNT.
-Sunday,12:30AM-2:00AM,Air,JUSTIN JAY
-Sunday,11:15AM-12:15PM,Water,CHAKRA FLOW
-Sunday,12:30PM-1:30PM,Water,BABY KUSH
-Sunday,1:30PM-2:30PM,Water,J'AIME MA VIE
-Sunday,2:30PM-4:00PM,Water,PHILIONAIRE
-Sunday,4:00PM-5:30PM,Water,THE SPONGES
-Sunday,5:30PM-6:45PM,Water,BLACK V NECK
-Sunday,6:45PM-7:45PM,Water,NEUMONIC B2B SNUFFY
-Sunday,8:00PM-9:00PM,Water,AHEE
-Sunday,9:00PM-10:00PM,Water,CANABLISS
-Sunday,10:00PM-11:00PM,Water,INZO
-Sunday,11:00PM-12:00AM,Water,LIQUID STRANGER
+Day,Time,Stage,Artist,Genre,ID
+Friday,TBD,TBD,ABOVE & BEYOND,Trance,show_friday_above-beyond
+Friday,TBD,TBD,ATB,Trance,show_friday_atb
+Friday,TBD,TBD,CHRIS LAKE,Tech House,show_friday_chris-lake
+Friday,TBD,TBD,CRANKDAT,Dubstep,show_friday_crankdat
+Friday,TBD,TBD,EXCISION,Dubstep,show_friday_excision
+Friday,TBD,TBD,GANJA WHITE NIGHT,Melodic Dubstep,show_friday_ganja-white-night
+Friday,TBD,TBD,IT'S MURPH,Bass House,show_friday_its-murph
+Friday,TBD,TBD,JUSTIZ,Electronic,show_friday_justiz
+Friday,TBD,TBD,KETTAMA,Tech House,show_friday_kettama
+Friday,TBD,TBD,ZINGARA,Astral Bass,show_friday_zingara
+Friday,TBD,TBD,DIRTWAVE,Electro-Acoustic,show_friday_dirtwave
+Friday,TBD,TBD,EFIN,Dubstep,show_friday_efin
+Friday,TBD,TBD,IVY LAB,Halftime D&B,show_friday_ivy-lab
+Friday,TBD,TBD,KALEBRA SANDERS,Vocal House,show_friday_kalebra-sanders
+Friday,TBD,TBD,MYAGO,Electronic,show_friday_myago
+Friday,TBD,TBD,NEOSHAMAN,Psytrance,show_friday_neoshaman
+Friday,TBD,TBD,LANGLIE,Electronic,show_friday_langlie
+Friday,TBD,TBD,PASHENOVA,Electronic,show_friday_pashenova
+Saturday,TBD,TBD,A-TRAK,Open Format,show_saturday_a-trak
+Saturday,TBD,TBD,AYRO,Tech House,show_saturday_ayro
+Saturday,TBD,TBD,CLOONEE,Tech House,show_saturday_cloonee
+Saturday,TBD,TBD,CLOZEE,World Bass,show_saturday_clozee
+Saturday,TBD,TBD,HEDEX,Drum & Bass,show_saturday_hedex
+Saturday,TBD,TBD,HOLI,Riddim,show_saturday_holi
+Saturday,TBD,TBD,LEVEL UP,Dubstep,show_saturday_level-up
+Saturday,TBD,TBD,LOUIS THE CHILD,Future Bass,show_saturday_louis-the-child
+Saturday,TBD,TBD,TYLAN,Electronic,show_saturday_tylan
+Saturday,TBD,TBD,VAMPIRES AT THE TREES,Electronic,show_saturday_vampires-at-the-trees
+Saturday,TBD,TBD,RAY VOLPE,Melodic Bass,show_saturday_ray-volpe
+Saturday,TBD,TBD,SUBTRONICS,Riddim,show_saturday_subtronics
+Saturday,TBD,TBD,SVDDEN DEATH,Riddim,show_saturday_svdden-death
+Saturday,TBD,TBD,WESTEND,Tech House,show_saturday_westend
+Saturday,TBD,TBD,BROLIN,Electronic,show_saturday_brolin
+Saturday,TBD,TBD,PRIYA RAGU,R&B / Soul,show_saturday_priya-ragu
+Saturday,TBD,TBD,STEFF DA CAMPO,Bass House,show_saturday_steff-da-campo
+Saturday,TBD,TBD,BOBBY LIMA,Tech House,show_saturday_bobby-lima
+Saturday,TBD,TBD,SIPPY,Heavy Bass,show_saturday_sippy
+Saturday,TBD,TBD,HANA,Synth Pop,show_saturday_hana
+Saturday,TBD,TBD,MARC HERZ,Drum & Bass,show_saturday_marc-herz
+Saturday,TBD,TBD,PATCHY,Electronic,show_saturday_patchy
+Saturday,TBD,TBD,PAUL PARSONS,House,show_saturday_paul-parsons
+Saturday,TBD,TBD,TAYLOR PARK,Electronic,show_saturday_taylor-park
+Sunday,TBD,TBD,ACRAZE,Tech House,show_sunday_acraze
+Sunday,TBD,TBD,CHARLOTTE DE WITTE,Techno,show_sunday_charlotte-de-witte
+Sunday,TBD,TBD,I HATE MODELS,Techno,show_sunday_i-hate-models
+Sunday,TBD,TBD,GOLDEN PONY,House,show_sunday_golden-pony
+Sunday,TBD,TBD,PORTER ROBINSON,Melodic Electronic,show_sunday_porter-robinson
+Sunday,TBD,TBD,SNOW GOOD,Hip-Hop,show_sunday_snow-good
+Sunday,TBD,TBD,JACKIE HOLLANDER,Electronic,show_sunday_jackie-hollander

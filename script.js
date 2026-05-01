@@ -3,12 +3,14 @@ class FestivalPlanner {
 		this.attendees = new Map(); // Map of showId to Set of attendee names
 		this.attendeeStates = new Map(); // Map of showId to Map of name to state
 		this.comments = new Map(); // Map of showId to Array of comment objects
+		this.musicTracks = new Map(); // Map of showId to Array of saved music tracks
 		this.commentDrafts = new Map(); // Map of showId to in-progress comment text
 		this.allTogetherShows = new Set();
 		this.currentName = null;
 		this.currentDay = "all";
 		this.scheduleMode = "all"; // all | my | group
 		this.viewMode = "stage"; // stage | chronological | timeline
+		this.activeTab = "discovery"; // discovery | schedule
 		this.scheduleLoaded = false;
 		this.dataService = null;
 		this.unsubscribe = null;
@@ -119,14 +121,18 @@ class FestivalPlanner {
 			if (loadingPlaceholder && festivalGrid.children.length > 1) {
 				// Schedule has been loaded
 				this.scheduleLoaded = true;
-				this.renderAttendees();
+				this.applyFilters();
+				this.handleSpotifyReturn();
+				this.renderSharePlaylistPageIfNeeded();
 			} else if (loadingPlaceholder) {
 				// Still loading, check again in 100ms
 				setTimeout(checkSchedule, 100);
 			} else {
 				// No loading placeholder, schedule might already be loaded
 				this.scheduleLoaded = true;
-				this.renderAttendees();
+				this.applyFilters();
+				this.handleSpotifyReturn();
+				this.renderSharePlaylistPageIfNeeded();
 			}
 		};
 
@@ -252,6 +258,38 @@ class FestivalPlanner {
 			});
 		}
 
+		const exportMusicBtn = document.getElementById("exportMusicBtn");
+		if (exportMusicBtn) {
+			exportMusicBtn.addEventListener("click", () => {
+				this.openMusicExportModal();
+			});
+		}
+
+		const musicExportModal = document.getElementById("musicExportModal");
+		if (musicExportModal) {
+			musicExportModal.addEventListener("click", (e) => {
+				if (e.target.matches("[data-close-music-export-modal]")) {
+					this.closeMusicExportModal();
+				}
+			});
+		}
+
+		const createSpotifyPlaylistBtn = document.getElementById(
+			"createSpotifyPlaylistBtn"
+		);
+		if (createSpotifyPlaylistBtn) {
+			createSpotifyPlaylistBtn.addEventListener("click", async () => {
+				await this.createSpotifyPlaylistFromSelectedGenre();
+			});
+		}
+
+		const openSharePlaylistBtn = document.getElementById("openSharePlaylistBtn");
+		if (openSharePlaylistBtn) {
+			openSharePlaylistBtn.addEventListener("click", () => {
+				this.openSelectedSharePlaylist();
+			});
+		}
+
 		const lockscreenModal = document.getElementById("lockscreenExportModal");
 		if (lockscreenModal) {
 			lockscreenModal.addEventListener("click", (e) => {
@@ -295,7 +333,9 @@ class FestivalPlanner {
 		document.addEventListener("click", (e) => {
 			if (
 				e.target.closest(".comments-section") ||
-				e.target.closest(".all-together-toggle")
+				e.target.closest(".all-together-toggle") ||
+				e.target.closest(".music-section") ||
+				e.target.closest(".music-panel")
 			) {
 				return;
 			}
@@ -303,6 +343,13 @@ class FestivalPlanner {
 			if (show && this.currentName) {
 				this.toggleAttendee(show);
 			}
+		});
+
+		// Tab switching
+		document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				if (!btn.disabled) this.switchTab(btn.dataset.tab);
+			});
 		});
 
 		// Focus on name select when page loads
@@ -432,6 +479,18 @@ class FestivalPlanner {
 		}
 	}
 
+	switchTab(tab) {
+		this.activeTab = tab;
+		document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
+			btn.classList.toggle("active", btn.dataset.tab === tab);
+		});
+		const scheduleControls = document.getElementById("scheduleControls");
+		if (scheduleControls) {
+			scheduleControls.style.display = tab === "schedule" ? "" : "none";
+		}
+		this.applyFilters();
+	}
+
 	// Apply current filters (day, My Schedule, and Chronological)
 	applyFilters() {
 		// Remove the choose person message if a person is selected
@@ -439,7 +498,9 @@ class FestivalPlanner {
 			this.removeChoosePersonMessage();
 		}
 
-		if (this.viewMode === "chronological") {
+		if (this.activeTab === "discovery") {
+			this.showDiscoveryView();
+		} else if (this.viewMode === "chronological") {
 			this.showChronologicalView();
 		} else if (this.viewMode === "timeline") {
 			this.showTimelineView();
@@ -671,6 +732,64 @@ class FestivalPlanner {
 
 		festivalGrid.appendChild(timelineView);
 		this.renderAttendees();
+	}
+
+	showDiscoveryView() {
+		const festivalGrid = document.querySelector(".festival-grid");
+		document.querySelectorAll(".day-section").forEach((s) => (s.style.display = "none"));
+		festivalGrid.querySelector(".chronological-view")?.remove();
+		festivalGrid.querySelector(".timeline-view")?.remove();
+		festivalGrid.querySelector(".discovery-view")?.remove();
+		this.removeChoosePersonMessage();
+
+		const allShows = this.getAllShowsForChronological();
+		const sorted = [...allShows].sort((a, b) => {
+			return this.getInterestedNames(b.id).length - this.getInterestedNames(a.id).length;
+		});
+
+		const view = document.createElement("div");
+		view.className = "discovery-view";
+		sorted.forEach((show) => view.appendChild(this.createDiscoveryCard(show)));
+		festivalGrid.appendChild(view);
+		this.renderAttendees();
+	}
+
+	createDiscoveryCard(show) {
+		const card = document.createElement("div");
+		card.className = "show discovery-card";
+		card.dataset.show = show.id;
+
+		const day = (show.originalDay || show.day || "").trim();
+		const daySlug = day.toLowerCase();
+		card.dataset.day = daySlug;
+
+		card.innerHTML = `
+			<div class="dc-artist">${this.escapeHtml(show.title)}</div>
+			<div class="dc-meta">
+				<span class="discovery-day-badge discovery-day-${daySlug}">${this.escapeHtml(day)}</span>
+				${show.genre ? `<span class="genre-tag">${this.escapeHtml(show.genre)}</span>` : ""}
+			</div>
+			<div class="attendees"></div>
+			<div class="dc-tracks"></div>
+		`;
+		return card;
+	}
+
+	refreshDiscoverySorting() {
+		const view = document.querySelector(".discovery-view");
+		if (!view) return;
+		const cards = Array.from(view.querySelectorAll(".discovery-card"));
+		cards.sort((a, b) => {
+			return (
+				this.getInterestedNames(b.dataset.show).length -
+				this.getInterestedNames(a.dataset.show).length
+			);
+		});
+		cards.forEach((card) => {
+			const count = this.getInterestedNames(card.dataset.show).length;
+			card.classList.toggle("dc-hot", count >= 2);
+			view.appendChild(card);
+		});
 	}
 
 	buildTimelineDayData(daySection) {
@@ -1043,6 +1162,7 @@ class FestivalPlanner {
 		}
 
 		this.addAllTogetherControl(showElement);
+		this.addMusicToShow(showElement);
 
 		// Prevent comment controls from triggering show click handlers underneath.
 		commentsSection.addEventListener("click", (e) => {
@@ -1051,6 +1171,293 @@ class FestivalPlanner {
 
 		// Update the comments count to ensure it's current
 		this.updateCommentsCount(showId);
+	}
+
+	addMusicToShow(showElement) {
+		const showId = showElement.dataset.show;
+		if (!showId) return;
+
+		const isDiscovery = showElement.classList.contains("discovery-card");
+		const controlsContainer =
+			(!isDiscovery && showElement.querySelector(".comments-section")) || showElement;
+		let musicSection = showElement.querySelector(".music-section");
+		if (!musicSection) {
+			musicSection = document.createElement("div");
+			musicSection.className = "music-section";
+
+			const toggle = document.createElement("button");
+			toggle.type = "button";
+			toggle.className = "music-toggle-btn";
+			toggle.title = "Add songs";
+			toggle.innerHTML = `
+				<span class="music-icon">♪</span>
+				<span class="music-count"></span>
+			`;
+			toggle.addEventListener("click", (e) => {
+				e.stopPropagation();
+				this.toggleMusicPanel(showId, showElement);
+			});
+
+			musicSection.appendChild(toggle);
+			controlsContainer.appendChild(musicSection);
+			musicSection.addEventListener("click", (e) => e.stopPropagation());
+		}
+
+		this.updateMusicCount(showId);
+	}
+
+	updateMusicCount(showId) {
+		document.querySelectorAll(`[data-show="${showId}"]`).forEach((showElement) => {
+			const count = this.getMusicTracksForShow(showId).length;
+			const badge = showElement.querySelector(".music-count");
+			if (!badge) return;
+			badge.textContent = count > 0 ? count : "";
+			badge.style.display = count > 0 ? "inline-flex" : "none";
+		});
+		this.renderDiscoveryTracks(showId);
+	}
+
+	toggleMusicPanel(showId, showElement) {
+		let panel = showElement.querySelector(".music-panel");
+		if (panel) {
+			panel.remove();
+			return;
+		}
+
+		document.querySelectorAll(".music-panel").forEach((existing) => {
+			if (!showElement.contains(existing)) existing.remove();
+		});
+
+		panel = document.createElement("div");
+		panel.className = "music-panel";
+		panel.innerHTML = `
+			<div class="music-panel-header">
+				<strong>Songs</strong>
+				<button type="button" class="music-panel-close" aria-label="Close music panel">×</button>
+			</div>
+			<div class="music-saved-list"></div>
+			<div class="music-search-row">
+				<input type="search" class="music-search-input" placeholder="Search Spotify..." />
+				<button type="button" class="music-search-btn">Search</button>
+			</div>
+			<div class="music-search-results"></div>
+		`;
+		showElement.appendChild(panel);
+
+		panel.addEventListener("click", (e) => e.stopPropagation());
+		panel.querySelector(".music-panel-close").addEventListener("click", () => {
+			panel.remove();
+		});
+		const input = panel.querySelector(".music-search-input");
+		const search = async () => {
+			await this.searchMusicForShow(showId, showElement, input.value);
+		};
+		panel.querySelector(".music-search-btn").addEventListener("click", search);
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				search();
+			}
+		});
+
+		this.renderSavedMusic(showId, showElement);
+		input.focus();
+	}
+
+	getMusicTracksForShow(showId) {
+		return this.musicTracks.has(showId) ? this.musicTracks.get(showId) : [];
+	}
+
+	renderSavedMusic(showId, showElement) {
+		const list = showElement.querySelector(".music-saved-list");
+		if (!list) return;
+		const tracks = this.getMusicTracksForShow(showId);
+		if (!tracks.length) {
+			list.innerHTML = `<div class="music-empty">No songs added yet.</div>`;
+			return;
+		}
+
+		list.innerHTML = "";
+		tracks.forEach((track) => {
+			const item = document.createElement("div");
+			item.className = "music-track-item";
+			const canDelete = track.contributorName === this.currentName;
+			item.innerHTML = `
+				${track.artworkUrl ? `<img src="${this.escapeHtml(track.artworkUrl)}" alt="" />` : ""}
+				<div class="music-track-copy">
+					<div class="music-track-title">${this.escapeHtml(track.title)}</div>
+					<div class="music-track-meta">${this.escapeHtml(
+						(track.artists || []).join(", ")
+					)} • ${this.escapeHtml(track.contributorName || "Group")}</div>
+				</div>
+				<a class="music-open-link" href="${this.escapeHtml(
+					track.spotifyUrl || "#"
+				)}" target="_blank" rel="noopener">Open</a>
+				${
+					canDelete
+						? '<button type="button" class="music-delete-btn" aria-label="Remove song">×</button>'
+						: ""
+				}
+			`;
+			const deleteBtn = item.querySelector(".music-delete-btn");
+			if (deleteBtn) {
+				deleteBtn.addEventListener("click", async () => {
+					await this.deleteMusicTrack(track.id, showId);
+				});
+			}
+			list.appendChild(item);
+		});
+	}
+
+	renderDiscoveryTracks(showId) {
+		document.querySelectorAll(`.discovery-card[data-show="${showId}"]`).forEach((card) => {
+			const container = card.querySelector(".dc-tracks");
+			if (!container) return;
+			const tracks = this.getMusicTracksForShow(showId);
+			container.innerHTML = "";
+			tracks.forEach((track) => {
+				const item = document.createElement("div");
+				item.className = "dc-track-item";
+				item.addEventListener("click", (e) => e.stopPropagation());
+				const canDelete = track.contributorName === this.currentName;
+				item.innerHTML = `
+					${track.artworkUrl
+						? `<img class="dc-track-art" src="${this.escapeHtml(track.artworkUrl)}" alt="" />`
+						: `<div class="dc-track-art dc-track-art-empty">♪</div>`}
+					<div class="dc-track-info">
+						<div class="dc-track-title">${this.escapeHtml(track.title)}</div>
+						<div class="dc-track-by">${this.escapeHtml((track.artists || []).join(", "))}${track.contributorName ? ` · ${this.escapeHtml(track.contributorName)}` : ""}</div>
+					</div>
+					<a class="dc-track-open" href="${this.escapeHtml(track.spotifyUrl || "#")}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▶</a>
+					${canDelete ? `<button type="button" class="dc-track-delete" aria-label="Remove">×</button>` : ""}
+				`;
+				const deleteBtn = item.querySelector(".dc-track-delete");
+				if (deleteBtn) {
+					deleteBtn.addEventListener("click", async (e) => {
+						e.stopPropagation();
+						await this.deleteMusicTrack(track.id, showId);
+					});
+				}
+				container.appendChild(item);
+			});
+		});
+	}
+
+	async searchMusicForShow(showId, showElement, query) {
+		const results = showElement.querySelector(".music-search-results");
+		if (!results) return;
+		results.textContent = "Searching Spotify...";
+		try {
+			let data;
+			if (this.dataService?.searchSpotifyTracks) {
+				data = await this.dataService.searchSpotifyTracks(showId, query);
+			} else {
+				throw new Error("Spotify search needs the Railway API connection.");
+			}
+			this.renderMusicSearchResults(showId, showElement, data.tracks || []);
+		} catch (error) {
+			results.innerHTML = `<div class="music-error">${this.escapeHtml(
+				error.message
+			)}</div>`;
+		}
+	}
+
+	renderMusicSearchResults(showId, showElement, tracks) {
+		const results = showElement.querySelector(".music-search-results");
+		if (!results) return;
+		if (!tracks.length) {
+			results.innerHTML = `<div class="music-empty">No Spotify results found.</div>`;
+			return;
+		}
+
+		results.innerHTML = "";
+		tracks.forEach((track) => {
+			const alreadyAdded = this
+				.getMusicTracksForShow(showId)
+				.some((saved) => saved.spotifyTrackId === track.spotifyTrackId);
+			const item = document.createElement("div");
+			item.className = "music-result-item";
+			item.innerHTML = `
+				${track.artworkUrl ? `<img src="${this.escapeHtml(track.artworkUrl)}" alt="" />` : ""}
+				<div class="music-track-copy">
+					<div class="music-track-title">${this.escapeHtml(track.title)}</div>
+					<div class="music-track-meta">${this.escapeHtml(
+						(track.artists || []).join(", ")
+					)}${track.album ? ` • ${this.escapeHtml(track.album)}` : ""}</div>
+				</div>
+				<button type="button" class="music-add-btn" ${alreadyAdded ? "disabled" : ""}>${
+				alreadyAdded ? "Added" : "Add"
+			}</button>
+			`;
+			item.querySelector(".music-add-btn").addEventListener("click", async () => {
+				await this.addMusicTrack(showId, track, showElement);
+			});
+			results.appendChild(item);
+		});
+	}
+
+	async addMusicTrack(showId, track, showElement) {
+		if (!this.currentName) {
+			this.showNotification("Please select your name first", "error");
+			return;
+		}
+
+		try {
+			const payload = { ...track, showId, contributorName: this.currentName };
+			let saved = payload;
+			if (this.dataService?.saveMusicTrack) {
+				saved = await this.dataService.saveMusicTrack(payload);
+			} else {
+				saved = {
+					...payload,
+					id: `${showId}_${track.spotifyTrackId}`,
+					timestamp: new Date().toISOString(),
+					...this.getShowMusicContext(showId),
+				};
+			}
+			this.upsertLocalMusicTrack(saved);
+			await this.saveData();
+			this.renderSavedMusic(showId, showElement);
+			this.updateMusicCount(showId);
+			this.showNotification("Song added", "success");
+		} catch (error) {
+			this.showNotification(error.message, "error");
+		}
+	}
+
+	upsertLocalMusicTrack(track) {
+		if (!track.showId) return;
+		if (!this.musicTracks.has(track.showId)) this.musicTracks.set(track.showId, []);
+		const tracks = this.musicTracks.get(track.showId);
+		const index = tracks.findIndex(
+			(existing) => existing.spotifyTrackId === track.spotifyTrackId
+		);
+		if (index >= 0) tracks[index] = track;
+		else tracks.push(track);
+	}
+
+	async deleteMusicTrack(trackId, showId) {
+		if (!this.currentName) {
+			this.showNotification("Please select your name first", "error");
+			return;
+		}
+		try {
+			if (this.dataService?.deleteMusicTrack) {
+				await this.dataService.deleteMusicTrack(trackId, this.currentName);
+			}
+			const tracks = this.getMusicTracksForShow(showId).filter(
+				(track) => String(track.id) !== String(trackId)
+			);
+			if (tracks.length) this.musicTracks.set(showId, tracks);
+			else this.musicTracks.delete(showId);
+			await this.saveData();
+			document.querySelectorAll(`[data-show="${showId}"]`).forEach((showElement) => {
+				this.renderSavedMusic(showId, showElement);
+			});
+			this.updateMusicCount(showId);
+		} catch (error) {
+			this.showNotification(error.message, "error");
+		}
 	}
 
 	async toggleAttendee(showElement) {
@@ -1330,6 +1737,11 @@ class FestivalPlanner {
 
 		this.updateTimelineSelections();
 		this.renderAllTogetherIndicators();
+
+		// Re-sort discovery cards by popularity after attendees update
+		if (this.activeTab === "discovery") {
+			this.refreshDiscoverySorting();
+		}
 	}
 
 	async saveData() {
@@ -1339,6 +1751,7 @@ class FestivalPlanner {
 				attendees: {},
 				attendeeStates: {},
 				comments: {},
+				musicTracks: [],
 				allTogetherShows: Array.from(this.allTogetherShows),
 			};
 
@@ -1364,6 +1777,10 @@ class FestivalPlanner {
 				}));
 			});
 
+			this.musicTracks.forEach((tracks) => {
+				data.musicTracks.push(...tracks);
+			});
+
 			localStorage.setItem("festivalPlannerData", JSON.stringify(data));
 		}
 
@@ -1378,12 +1795,14 @@ class FestivalPlanner {
 				this.attendees = data.attendees || new Map();
 				this.attendeeStates = data.attendeeStates || data.states || new Map();
 				this.comments = data.comments || new Map();
+				this.musicTracks = data.musicTracks || new Map();
 				this.loadAllTogetherFlags();
 			} catch (error) {
 				console.error("Error loading data from data service:", error);
 				this.attendees = new Map();
 				this.attendeeStates = new Map();
 				this.comments = new Map();
+				this.musicTracks = new Map();
 				this.loadAllTogetherFlags();
 			}
 		} else {
@@ -1425,6 +1844,16 @@ class FestivalPlanner {
 									timestamp: comment.timestamp,
 								}))
 							);
+						});
+					}
+
+					if (Array.isArray(data.musicTracks)) {
+						data.musicTracks.forEach((track) => {
+							if (!track.showId) return;
+							if (!this.musicTracks.has(track.showId)) {
+								this.musicTracks.set(track.showId, []);
+							}
+							this.musicTracks.get(track.showId).push(track);
 						});
 					}
 
@@ -1544,6 +1973,7 @@ class FestivalPlanner {
 				this.attendees.clear();
 				this.attendeeStates.clear();
 				this.comments.clear();
+				this.musicTracks.clear();
 				this.renderAttendees();
 				this.showNotification("All data cleared", "success");
 			} else {
@@ -1553,6 +1983,7 @@ class FestivalPlanner {
 			this.attendees.clear();
 			this.attendeeStates.clear();
 			this.comments.clear();
+			this.musicTracks.clear();
 			this.saveData();
 			this.renderAttendees();
 			this.showNotification("All data cleared", "success");
@@ -1577,6 +2008,7 @@ class FestivalPlanner {
 				attendees: {},
 				attendeeStates: {},
 				comments: {},
+				musicTracks: [],
 				allTogetherShows: Array.from(this.allTogetherShows),
 			};
 
@@ -1602,6 +2034,10 @@ class FestivalPlanner {
 				}));
 			});
 
+			this.musicTracks.forEach((tracks) => {
+				data.musicTracks.push(...tracks);
+			});
+
 			const blob = new Blob([JSON.stringify(data, null, 2)], {
 				type: "application/json",
 			});
@@ -1623,6 +2059,7 @@ class FestivalPlanner {
 				this.attendees = data.attendees || new Map();
 				this.attendeeStates = data.attendeeStates || data.states || new Map();
 				this.comments = data.comments || new Map();
+				this.musicTracks = data.musicTracks || new Map();
 				this.renderAttendees();
 				this.showNotification("Data imported successfully", "success");
 			} else {
@@ -1634,6 +2071,7 @@ class FestivalPlanner {
 				this.attendees.clear();
 				this.attendeeStates.clear();
 				this.comments.clear();
+				this.musicTracks.clear();
 				this.allTogetherShows.clear();
 
 				// Import attendees
@@ -1664,6 +2102,16 @@ class FestivalPlanner {
 								timestamp: comment.timestamp,
 							}))
 						);
+					});
+				}
+
+				if (Array.isArray(data.musicTracks)) {
+					data.musicTracks.forEach((track) => {
+						if (!track.showId) return;
+						if (!this.musicTracks.has(track.showId)) {
+							this.musicTracks.set(track.showId, []);
+						}
+						this.musicTracks.get(track.showId).push(track);
 					});
 				}
 
@@ -2348,6 +2796,193 @@ class FestivalPlanner {
 				);
 			}
 		});
+	}
+
+	getShowMusicContext(showId) {
+		const showElement = document.querySelector(`.show[data-show="${showId}"]`);
+		if (!showElement) return { genre: "", lineupArtist: "" };
+		return {
+			genre: showElement.dataset.genre || "",
+			lineupArtist:
+				showElement.querySelector(".show-title")?.textContent?.trim() || "",
+		};
+	}
+
+	getAllMusicTracks() {
+		return Array.from(this.musicTracks.values()).flat();
+	}
+
+	getMusicGenresWithCounts() {
+		const counts = new Map();
+		this.getAllMusicTracks().forEach((track) => {
+			const genre = track.genre || "Uncategorized";
+			if (!counts.has(genre)) counts.set(genre, { genre, trackCount: 0 });
+			counts.get(genre).trackCount += 1;
+		});
+		return Array.from(counts.values()).sort((a, b) =>
+			a.genre.localeCompare(b.genre)
+		);
+	}
+
+	openMusicExportModal() {
+		const modal = document.getElementById("musicExportModal");
+		const select = document.getElementById("musicExportGenreSelect");
+		if (!modal || !select) return;
+
+		const genres = this.getMusicGenresWithCounts();
+		select.innerHTML = genres.length
+			? genres
+					.map(
+						(item) =>
+							`<option value="${this.escapeHtml(item.genre)}">${this.escapeHtml(
+								item.genre
+							)} (${item.trackCount})</option>`
+					)
+					.join("")
+			: '<option value="">No songs added yet</option>';
+
+		const status = document.getElementById("musicExportStatus");
+		if (status) {
+			status.textContent = genres.length
+				? "Choose a genre to export."
+				: "Add songs to lineup artists first.";
+		}
+
+		modal.classList.add("show");
+		modal.setAttribute("aria-hidden", "false");
+		document.body.classList.add("modal-open");
+	}
+
+	closeMusicExportModal() {
+		const modal = document.getElementById("musicExportModal");
+		if (!modal) return;
+		modal.classList.remove("show");
+		modal.setAttribute("aria-hidden", "true");
+		document.body.classList.remove("modal-open");
+	}
+
+	getSelectedMusicGenre() {
+		return document.getElementById("musicExportGenreSelect")?.value || "";
+	}
+
+	async createSpotifyPlaylistFromSelectedGenre() {
+		const genre = this.getSelectedMusicGenre();
+		const status = document.getElementById("musicExportStatus");
+		if (!genre) {
+			this.showNotification("Choose a genre with saved songs first", "error");
+			return;
+		}
+		if (status) status.textContent = "Creating Spotify playlist...";
+
+		try {
+			if (!this.dataService?.exportSpotifyPlaylist) {
+				throw new Error("Spotify export needs the Railway API connection.");
+			}
+			const result = await this.dataService.exportSpotifyPlaylist(genre);
+			if (result.requiresAuth && result.authUrl) {
+				sessionStorage.setItem("pendingSpotifyExportGenre", genre);
+				window.location.href = result.authUrl;
+				return;
+			}
+			if (result.playlistUrl) {
+				if (status) {
+					status.innerHTML = `Created ${result.trackCount} tracks. <a href="${this.escapeHtml(
+						result.playlistUrl
+					)}" target="_blank" rel="noopener">Open Spotify playlist</a>`;
+				}
+				window.open(result.playlistUrl, "_blank", "noopener");
+			}
+		} catch (error) {
+			if (status) status.textContent = error.message;
+			this.showNotification(error.message, "error");
+		}
+	}
+
+	openSelectedSharePlaylist() {
+		const genre = this.getSelectedMusicGenre();
+		if (!genre) {
+			this.showNotification("Choose a genre with saved songs first", "error");
+			return;
+		}
+		window.open(
+			`/music/playlist/${encodeURIComponent(genre)}`,
+			"_blank",
+			"noopener"
+		);
+	}
+
+	handleSpotifyReturn() {
+		const params = new URLSearchParams(window.location.search);
+		const genre =
+			params.get("spotifyExportGenre") ||
+			sessionStorage.getItem("pendingSpotifyExportGenre");
+		const error = params.get("spotifyExportError");
+		if (error) {
+			this.showNotification(`Spotify export failed: ${error}`, "error");
+		}
+		if (genre && params.get("spotifyAuthed")) {
+			sessionStorage.removeItem("pendingSpotifyExportGenre");
+			window.history.replaceState({}, "", window.location.pathname);
+			setTimeout(async () => {
+				this.openMusicExportModal();
+				const select = document.getElementById("musicExportGenreSelect");
+				if (select) select.value = genre;
+				await this.createSpotifyPlaylistFromSelectedGenre();
+			}, 300);
+		}
+	}
+
+	renderSharePlaylistPageIfNeeded() {
+		const prefix = "/music/playlist/";
+		if (!window.location.pathname.startsWith(prefix)) return false;
+
+		const genre = decodeURIComponent(window.location.pathname.slice(prefix.length));
+		const tracks = this.getAllMusicTracks().filter(
+			(track) => (track.genre || "Uncategorized") === genre
+		);
+
+		document.body.classList.add("share-playlist-body");
+		document.body.innerHTML = `
+			<main class="share-playlist">
+				<header class="share-playlist-header">
+					<a href="/" class="share-back-link">Back to planner</a>
+					<h1>Elements 2026 - ${this.escapeHtml(genre)}</h1>
+					<p>${tracks.length} group song${tracks.length === 1 ? "" : "s"}</p>
+				</header>
+				<section class="share-track-list"></section>
+			</main>
+		`;
+
+		const list = document.querySelector(".share-track-list");
+		if (!tracks.length) {
+			list.innerHTML = `<div class="share-empty">No songs have been added for this genre yet.</div>`;
+			return true;
+		}
+
+		tracks.forEach((track) => {
+			const appleQuery = encodeURIComponent(
+				[track.title, ...(track.artists || [])].join(" ")
+			);
+			const appleUrl = `https://music.apple.com/us/search?term=${appleQuery}`;
+			const card = document.createElement("article");
+			card.className = "share-track-card";
+			card.innerHTML = `
+				${track.artworkUrl ? `<img src="${this.escapeHtml(track.artworkUrl)}" alt="" />` : ""}
+				<div class="share-track-copy">
+					<h2>${this.escapeHtml(track.title)}</h2>
+					<p>${this.escapeHtml((track.artists || []).join(", "))}</p>
+					<p class="share-track-context">${this.escapeHtml(
+						track.lineupArtist || ""
+					)}${track.contributorName ? ` • added by ${this.escapeHtml(track.contributorName)}` : ""}</p>
+				</div>
+				<div class="share-track-actions">
+					<a href="${this.escapeHtml(track.spotifyUrl || "#")}" target="_blank" rel="noopener">Spotify</a>
+					<a href="${appleUrl}" target="_blank" rel="noopener">Apple Music</a>
+				</div>
+			`;
+			list.appendChild(card);
+		});
+		return true;
 	}
 
 	openLockscreenExportModal() {
