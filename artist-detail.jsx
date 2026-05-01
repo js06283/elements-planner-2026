@@ -432,7 +432,7 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
       setSearchError(null);
       if (artist) {
         setSearching(true);
-        spotifySearch(artist.artist, "")
+        spotifySearch(artist.searchAs || artist.artist, "")
           .then(tracks => { setResults(tracks); setSearchError(null); })
           .catch(err => { setResults([]); setSearchError(err.message); })
           .finally(() => setSearching(false));
@@ -447,7 +447,7 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
     setSearching(true);
     setSearchError(null);
     const t = setTimeout(() => {
-      spotifySearch(artist?.artist || "", query)
+      spotifySearch(artist?.searchAs || artist?.artist || "", query)
         .then(tracks => { setResults(tracks); setSearchError(null); })
         .catch(err => { setResults([]); setSearchError(err.message); })
         .finally(() => setSearching(false));
