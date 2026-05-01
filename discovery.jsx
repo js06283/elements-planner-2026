@@ -6,7 +6,7 @@ const { useState: useStateD, useMemo: useMemoD } = React;
 function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser }) {
   const [day, setDay] = useStateD("All");
   const [genre, setGenre] = useStateD("All");
-  const [sort, setSort] = useStateD("lineup"); // lineup | fans | songs
+  const [sort, setSort] = useStateD("fans"); // lineup | fans | songs
 
   const days = ["All", "Friday", "Saturday", "Sunday"];
   const genres = useMemoD(() => {
@@ -295,6 +295,12 @@ function CollageBackground({ tracks }) {
           return <div key={`e-${i}`} style={{
             background: "repeating-linear-gradient(135deg, #1f1812 0 12px, #1a140e 12px 24px)",
           }}/>;
+        }
+        if (t.artworkUrl) {
+          return (
+            <img key={t.id} src={t.artworkUrl} alt={t.title || ""}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}/>
+          );
         }
         const c = window.coverFor(t.id);
         return (
