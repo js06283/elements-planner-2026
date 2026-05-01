@@ -501,13 +501,8 @@ app.get("/api/music/search", async (req, res) => {
 		}
 
 		const token = await getSpotifyClientToken();
-		const params = new URLSearchParams({
-			q: query,
-			type: "track",
-			limit: "20",
-			market: "US",
-		});
-		const data = await spotifyApi(`/search?${params.toString()}`, token);
+		const searchPath = `/search?q=${encodeURIComponent(query)}&type=track&limit=20&market=US`;
+		const data = await spotifyApi(searchPath, token);
 		res.json({
 			tracks: (data.tracks?.items || []).map(mapSpotifyTrack),
 			query,
