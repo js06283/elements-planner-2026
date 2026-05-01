@@ -10,23 +10,31 @@ function appReducer(state, action) {
     case "toggleFan": {
       const fans = state.fans[action.artistId] || [];
       const isFan = fans.includes(action.user);
-      // Selecting fan removes must-see; deselecting fan just removes fan.
-      const mustSee = (state.mustSeeByArtist[action.artistId] || []).filter(n => n !== action.user);
       return {
         ...state,
         fans: { ...state.fans, [action.artistId]: isFan ? fans.filter(n => n !== action.user) : [...fans, action.user] },
-        mustSeeByArtist: { ...state.mustSeeByArtist, [action.artistId]: mustSee },
+        mustSeeByArtist: { ...state.mustSeeByArtist, [action.artistId]: (state.mustSeeByArtist[action.artistId] || []).filter(n => n !== action.user) },
+        curiousByArtist: { ...state.curiousByArtist, [action.artistId]: (state.curiousByArtist[action.artistId] || []).filter(n => n !== action.user) },
       };
     }
     case "toggleMustSee": {
       const mustSee = state.mustSeeByArtist[action.artistId] || [];
       const isMustSee = mustSee.includes(action.user);
-      // Selecting must-see removes regular fan; deselecting just removes must-see.
-      const fans = (state.fans[action.artistId] || []).filter(n => n !== action.user);
       return {
         ...state,
         mustSeeByArtist: { ...state.mustSeeByArtist, [action.artistId]: isMustSee ? mustSee.filter(n => n !== action.user) : [...mustSee, action.user] },
-        fans: { ...state.fans, [action.artistId]: fans },
+        fans: { ...state.fans, [action.artistId]: (state.fans[action.artistId] || []).filter(n => n !== action.user) },
+        curiousByArtist: { ...state.curiousByArtist, [action.artistId]: (state.curiousByArtist[action.artistId] || []).filter(n => n !== action.user) },
+      };
+    }
+    case "toggleCurious": {
+      const curious = state.curiousByArtist[action.artistId] || [];
+      const isCurious = curious.includes(action.user);
+      return {
+        ...state,
+        curiousByArtist: { ...state.curiousByArtist, [action.artistId]: isCurious ? curious.filter(n => n !== action.user) : [...curious, action.user] },
+        fans: { ...state.fans, [action.artistId]: (state.fans[action.artistId] || []).filter(n => n !== action.user) },
+        mustSeeByArtist: { ...state.mustSeeByArtist, [action.artistId]: (state.mustSeeByArtist[action.artistId] || []).filter(n => n !== action.user) },
       };
     }
     case "addSongs": {
@@ -106,7 +114,7 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  return { fans: {}, mustSeeByArtist: {}, songsByArtist: {}, commentsByArtist: {}, currentUser: "" };
+  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, currentUser: "" };
 }
 
 const STORAGE_KEY = "elements26-songsfans-v2";
@@ -141,6 +149,7 @@ function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         fans: state.fans,
         mustSeeByArtist: state.mustSeeByArtist,
+        curiousByArtist: state.curiousByArtist,
         songsByArtist: state.songsByArtist,
         commentsByArtist: state.commentsByArtist,
         currentUser: state.currentUser,

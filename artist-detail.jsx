@@ -6,10 +6,12 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
   if (!artist) return null;
   const fans = state.fans[artist.id] || [];
   const mustSee = (state.mustSeeByArtist || {})[artist.id] || [];
+  const curious = (state.curiousByArtist || {})[artist.id] || [];
   const songs = state.songsByArtist[artist.id] || [];
   const comments = (state.commentsByArtist || {})[artist.id] || [];
   const isFan = fans.includes(currentUser);
   const isMustSee = mustSee.includes(currentUser);
+  const isCurious = curious.includes(currentUser);
   const tint = window.STAGE_TINTS[artist.stage];
 
   return (
@@ -61,6 +63,17 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button onClick={() => dispatch({ type: "toggleCurious", artistId: artist.id, user: currentUser })} style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "10px 18px", borderRadius: 999,
+              background: isCurious ? "#3FB8B0" : "transparent",
+              color: isCurious ? "#0E0B08" : "#3FB8B0",
+              border: `1px solid ${isCurious ? "#3FB8B0" : "rgba(63, 184, 176, 0.4)"}`,
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+              cursor: "pointer", transition: "all 0.15s",
+            }}>
+              ? {isCurious ? "I'm curious" : "I'm curious?"}
+            </button>
             <button onClick={() => dispatch({ type: "toggleMustSee", artistId: artist.id, user: currentUser })} style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "10px 18px", borderRadius: 999,
@@ -87,15 +100,18 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
               {isFan ? "I'm a fan" : "Mark as fan"}
             </button>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {(fans.length + mustSee.length) > 0 ? (
+              {(fans.length + mustSee.length + curious.length) > 0 ? (
                 <>
-                  <window.AvatarStack names={[...mustSee, ...fans.filter(n => !mustSee.includes(n))]} size={24} max={6}/>
+                  <window.AvatarStack names={[...mustSee, ...fans.filter(n => !mustSee.includes(n)), ...curious.filter(n => !mustSee.includes(n) && !fans.includes(n))]} size={24} max={6}/>
                   <span style={{
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                     color: "rgba(244, 234, 216, 0.55)",
                   }}>
-                    {mustSee.length > 0 && <span style={{ color: "#E8C77A" }}>★ {mustSee.join(", ")}{fans.length > 0 ? " · " : ""}</span>}
+                    {mustSee.length > 0 && <span style={{ color: "#E8C77A" }}>★ {mustSee.join(", ")}</span>}
+                    {mustSee.length > 0 && fans.length > 0 && " · "}
                     {fans.length > 0 && fans.join(", ")}
+                    {(mustSee.length > 0 || fans.length > 0) && curious.length > 0 && " · "}
+                    {curious.length > 0 && <span style={{ color: "#3FB8B0" }}>? {curious.join(", ")}</span>}
                   </span>
                 </>
               ) : (

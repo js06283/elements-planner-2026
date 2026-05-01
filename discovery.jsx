@@ -76,11 +76,13 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
             artist={a}
             fans={state.fans[a.id] || []}
             mustSee={(state.mustSeeByArtist || {})[a.id] || []}
+            curious={(state.curiousByArtist || {})[a.id] || []}
             songs={state.songsByArtist[a.id] || []}
             comments={(state.commentsByArtist || {})[a.id] || []}
             currentUser={currentUser}
             onToggleFan={() => dispatch({ type: "toggleFan", artistId: a.id, user: currentUser })}
             onToggleMustSee={() => dispatch({ type: "toggleMustSee", artistId: a.id, user: currentUser })}
+            onToggleCurious={() => dispatch({ type: "toggleCurious", artistId: a.id, user: currentUser })}
             onClick={() => onArtistClick(a)}
             onAddSong={() => onAddSong(a)}
           />
@@ -159,9 +161,10 @@ function Stat({ label, value }) {
 }
 
 // — Artist card ————————————————————————
-function ArtistCard({ artist, fans, mustSee, songs, comments, currentUser, onToggleFan, onToggleMustSee, onClick, onAddSong }) {
+function ArtistCard({ artist, fans, mustSee, curious, songs, comments, currentUser, onToggleFan, onToggleMustSee, onToggleCurious, onClick, onAddSong }) {
   const isFan = fans.includes(currentUser);
   const isMustSee = mustSee.includes(currentUser);
+  const isCurious = curious.includes(currentUser);
   const tint = window.STAGE_TINTS[artist.stage];
   // Top 4 songs by hearts (fall back to first 4 added)
   const topSongs = [...songs].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0)).slice(0, 4);
@@ -192,9 +195,17 @@ function ArtistCard({ artist, fans, mustSee, songs, comments, currentUser, onTog
           }}>{artist.day.toUpperCase()}</span>
         </div>
 
-        {/* Fan + must-see buttons top-right */}
+        {/* Reaction buttons top-right */}
         <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 6 }}
           onClick={e => e.stopPropagation()}>
+          <button onClick={onToggleCurious} title="I'm curious" style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: isCurious ? "#3FB8B0" : "rgba(14, 11, 8, 0.85)",
+            color: isCurious ? "#0E0B08" : "#F4EAD8",
+            border: `1px solid ${isCurious ? "#3FB8B0" : "rgba(255,255,255,0.15)"}`,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s", fontSize: 15, fontWeight: 700,
+          }}>?</button>
           <button onClick={onToggleMustSee} title="Must See" style={{
             width: 36, height: 36, borderRadius: "50%",
             background: isMustSee ? "#E8C77A" : "rgba(14, 11, 8, 0.85)",
@@ -259,15 +270,16 @@ function ArtistCard({ artist, fans, mustSee, songs, comments, currentUser, onTog
           gap: 10, paddingTop: 12, borderTop: "1px dashed rgba(255,255,255,0.08)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {(fans.length + mustSee.length) > 0 ? (
+            {(fans.length + mustSee.length + curious.length) > 0 ? (
               <>
-                <window.AvatarStack names={[...mustSee, ...fans.filter(n => !mustSee.includes(n))]} size={22} max={4}/>
+                <window.AvatarStack names={[...mustSee, ...fans.filter(n => !mustSee.includes(n)), ...curious.filter(n => !mustSee.includes(n) && !fans.includes(n))]} size={22} max={4}/>
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                   color: "rgba(244, 234, 216, 0.55)",
                 }}>
                   {mustSee.length > 0 && <span style={{ color: "#E8C77A" }}>★{mustSee.length} </span>}
-                  {fans.length > 0 && `♥${fans.length}`}
+                  {fans.length > 0 && <span>♥{fans.length} </span>}
+                  {curious.length > 0 && <span style={{ color: "#3FB8B0" }}>?{curious.length}</span>}
                 </span>
               </>
             ) : (
