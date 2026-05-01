@@ -172,6 +172,40 @@ function App() {
     } catch {}
   }, [state]);
 
+  // Resume Spotify export after OAuth redirect
+  useEffectApp(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get("spotifyAuthed")) return;
+
+    // Clean the URL immediately
+    window.history.replaceState({}, "", window.location.pathname);
+
+    // Check for a pending direct export stored before redirect
+    const pending = sessionStorage.getItem("spotifyExportPending");
+    if (!pending) return;
+    sessionStorage.removeItem("spotifyExportPending");
+
+    let req;
+    try { req = JSON.parse(pending); } catch { return; }
+
+    // Retry the export now that the auth cookie is set
+    fetch("/api/music/export/spotify/direct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          setToast({ message: `Playlist "${req.name}" created · ${data.trackCount} tracks`, kind: "spotify" });
+          if (data.playlistUrl) window.open(data.playlistUrl, "_blank", "noopener");
+        } else {
+          setToast({ message: data.error || "Export failed", kind: "info" });
+        }
+      })
+      .catch(() => setToast({ message: "Export failed — try again", kind: "info" }));
+  }, []);
+
   const currentUser = state.currentUser;
 
   return (
@@ -348,8 +382,7 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
             cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
           }}>
             <window.SpotifyGlyph size={12}/>
-            <window.AppleMusicGlyph size={12}/>
-            Export
+            Export to Spotify
           </button>
           <button onClick={onPickProfile} style={{
             padding: "5px 14px 5px 6px", borderRadius: 999,

@@ -489,9 +489,11 @@ app.get("/api/music/search", async (req, res) => {
 	try {
 		const showId = String(req.query.showId || "");
 		const userQuery = String(req.query.q || "").trim();
+		// Accept an explicit artist name param (used by the React app which doesn't use showId)
+		const artistParam = String(req.query.artist || "").trim();
 		const schedule = getScheduleByShowId();
 		const show = schedule.get(showId);
-		const lineupArtist = show?.artist || "";
+		const lineupArtist = artistParam || show?.artist || "";
 		const query = [lineupArtist, userQuery].filter(Boolean).join(" ");
 
 		if (!query) {
@@ -502,13 +504,73 @@ app.get("/api/music/search", async (req, res) => {
 		const params = new URLSearchParams({
 			q: query,
 			type: "track",
-			limit: "10",
+			limit: "20",
 			market: "US",
 		});
 		const data = await spotifyApi(`/search?${params.toString()}`, token);
 		res.json({
 			tracks: (data.tracks?.items || []).map(mapSpotifyTrack),
 			query,
+		});
+	} catch (error) {
+		res.status(500).json({ error: error.message });
+	}
+});
+
+// Export a playlist from URIs provided directly by the client (used by the React app).
+// First call returns { requiresAuth, authUrl } if the user hasn't authed yet.
+// After OAuth callback the client retries and gets { ok, playlistUrl, trackCount }.
+app.post("/api/music/export/spotify/direct", async (req, res) => {
+	try {
+		const { name, description, uris } = req.body || {};
+		if (!name || !Array.isArray(uris) || uris.length === 0) {
+			return res.status(400).json({ error: "name and uris[] are required." });
+		}
+
+		const cookies = parseCookies(req);
+		const accessToken = cookies.spotify_access_token;
+		if (!accessToken) {
+			if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+				return res.status(500).json({ error: "Spotify OAuth is not configured." });
+			}
+			const state = crypto.randomBytes(18).toString("hex");
+			// Store the full export request so we can resume after auth
+			spotifyOAuthStates.set(state, { name, description, uris, createdAt: Date.now() });
+			const redirectUri = getSpotifyRedirectUri(req);
+			const params = new URLSearchParams({
+				client_id: process.env.SPOTIFY_CLIENT_ID,
+				response_type: "code",
+				redirect_uri: redirectUri,
+				scope: "playlist-modify-private",
+				state,
+			});
+			return res.json({
+				requiresAuth: true,
+				authUrl: `https://accounts.spotify.com/authorize?${params.toString()}`,
+			});
+		}
+
+		const playlist = await spotifyApi("/me/playlists", accessToken, {
+			method: "POST",
+			body: {
+				name,
+				description: description || "Created via Elements 2026 planner.",
+				public: false,
+			},
+		});
+
+		for (let i = 0; i < uris.length; i += 100) {
+			await spotifyApi(`/playlists/${playlist.id}/tracks`, accessToken, {
+				method: "POST",
+				body: { uris: uris.slice(i, i + 100) },
+			});
+		}
+
+		res.json({
+			ok: true,
+			playlistId: playlist.id,
+			playlistUrl: playlist.external_urls?.spotify,
+			trackCount: uris.length,
 		});
 	} catch (error) {
 		res.status(500).json({ error: error.message });
@@ -720,6 +782,11 @@ app.get("/api/music/spotify/callback", async (req, res) => {
 		);
 
 		setSpotifyTokenCookie(res, token.access_token, token.expires_in);
+		// Direct export (from React app) — pass resume params in URL so frontend retries
+		if (saved.uris) {
+			const resume = encodeURIComponent(JSON.stringify({ name: saved.name, description: saved.description, uris: saved.uris }));
+			return res.redirect(`/?spotifyDirectResume=${resume}&spotifyAuthed=1`);
+		}
 		res.redirect(
 			`/?spotifyExportGenre=${encodeURIComponent(saved.genre)}&spotifyAuthed=1`
 		);

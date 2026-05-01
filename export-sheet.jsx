@@ -1,11 +1,11 @@
-// Export sheet — gathers tracks for the chosen grouping and offers
-// Spotify + Apple Music export buttons.
+// Export sheet — real Spotify playlist creation via OAuth.
 
-const { useState: useStateE, useMemo: useMemoE } = React;
+const { useState: useStateE, useMemo: useMemoE, useEffect: useEffectE } = React;
 
-function ExportSheet({ open, onClose, request, state, onToast }) {
+function ExportSheet({ open, onClose, request, state, onToast, onRetryExport }) {
   // request: { kind: "artist"|"genre"|"person"|"all"|"day", artistId?, genre?, person?, day? }
-  const [exporting, setExporting] = useStateE(null); // "spotify" | "apple" | null
+  const [exporting, setExporting] = useStateE(false);
+  const [error, setError] = useStateE(null);
 
   const { tracks, title, subtitle, coverTracks } = useMemoE(() => {
     if (!request) return { tracks: [], title: "", subtitle: "", coverTracks: [] };
@@ -36,38 +36,66 @@ function ExportSheet({ open, onClose, request, state, onToast }) {
       filtered = all.filter(t => t.day === request.day);
       title = `${request.day} Mixtape`;
       subtitle = `Every song attached to a ${request.day} artist`;
-    } else { // all
+    } else {
       title = "Elements 2026 — The Group Mixtape";
       subtitle = "Every song everyone added";
     }
-    // Sort by hearts then recent
     filtered = [...filtered].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0));
     return { tracks: filtered, title, subtitle, coverTracks: filtered.slice(0, 4) };
   }, [request, state]);
 
-  const handleExport = async (service) => {
-    setExporting(service);
-    // Simulate the export. Real impl would call Spotify/Apple Music APIs.
-    await new Promise(r => setTimeout(r, 1400));
-    setExporting(null);
-    onToast({
-      message: service === "spotify"
-        ? `Created Spotify playlist "${title}" · ${tracks.length} tracks`
-        : `Saved to Apple Music: "${title}" · ${tracks.length} tracks`,
-      kind: service,
-    });
-    onClose();
+  // Reset error when sheet opens
+  useEffectE(() => { if (open) setError(null); }, [open]);
+
+  const handleExport = async () => {
+    const uris = tracks.map(t => t.spotifyUri).filter(Boolean);
+    if (!uris.length) {
+      setError("No Spotify tracks to export. Add songs via the Spotify search first.");
+      return;
+    }
+    setExporting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/music/export/spotify/direct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: title,
+          description: `Elements 2026 group picks — ${subtitle}`,
+          uris,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Export failed.");
+
+      if (data.requiresAuth) {
+        // Store export intent so we can resume after OAuth
+        sessionStorage.setItem("spotifyExportPending", JSON.stringify({ name: title, description: subtitle, uris }));
+        // Redirect same-tab so the cookie is set on callback
+        window.location.href = data.authUrl;
+        return;
+      }
+
+      onToast({ message: `Playlist "${title}" created · ${data.trackCount} tracks`, kind: "spotify" });
+      if (data.playlistUrl) window.open(data.playlistUrl, "_blank", "noopener");
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (!request) return <window.Sheet open={false} onClose={onClose}/>;
 
-  // Aggregate contributors
-  const contributors = Array.from(new Set(tracks.map(t => t.addedBy)));
+  const contributors = Array.from(new Set(tracks.map(t => t.addedBy).filter(Boolean)));
+  const exportableCount = tracks.filter(t => t.spotifyUri).length;
+  const hasNonSpotify = tracks.length > exportableCount;
 
   return (
     <window.Sheet open={open} onClose={onClose}>
       <div style={{ display: "flex", gap: 24, marginBottom: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
-        {/* Cover */}
+        {/* Cover collage */}
         <div style={{ flexShrink: 0 }}>
           <div style={{ width: 180, height: 180, position: "relative" }}>
             <window.AlbumCollage tracks={coverTracks} size={180}/>
@@ -79,8 +107,7 @@ function ExportSheet({ open, onClose, request, state, onToast }) {
               <div style={{
                 fontFamily: "'Bricolage Grotesque', serif", fontWeight: 800,
                 fontSize: 18, lineHeight: 0.95, color: "#F4EAD8",
-                letterSpacing: "-0.02em",
-                textShadow: "0 2px 6px rgba(0,0,0,0.5)",
+                letterSpacing: "-0.02em", textShadow: "0 2px 6px rgba(0,0,0,0.5)",
               }}>{title}</div>
             </div>
           </div>
@@ -89,9 +116,8 @@ function ExportSheet({ open, onClose, request, state, onToast }) {
         <div style={{ flex: 1, minWidth: 260 }}>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: "rgba(244, 234, 216, 0.45)", letterSpacing: "0.14em",
-            marginBottom: 10,
-          }}>EXPORT PLAYLIST</div>
+            color: "rgba(244, 234, 216, 0.45)", letterSpacing: "0.14em", marginBottom: 10,
+          }}>EXPORT TO SPOTIFY</div>
           <h2 style={{
             fontFamily: "'Bricolage Grotesque', serif", fontWeight: 700,
             fontSize: 32, lineHeight: 1.05, color: "#F4EAD8",
@@ -105,50 +131,59 @@ function ExportSheet({ open, onClose, request, state, onToast }) {
             <Stat2 label="Total" value={fmtTotal(tracks)}/>
           </div>
 
-          {/* Service buttons */}
-          <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
-            <button onClick={() => handleExport("spotify")} disabled={!tracks.length || exporting} style={{
-              flex: 1, minWidth: 200,
+          {hasNonSpotify && (
+            <div style={{
+              marginTop: 14, padding: "8px 12px",
+              background: "rgba(232, 199, 122, 0.08)",
+              border: "1px solid rgba(232, 199, 122, 0.25)",
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+              color: "#E8C77A", letterSpacing: "0.06em",
+            }}>
+              {exportableCount}/{tracks.length} TRACKS HAVE SPOTIFY URIS — OTHERS WILL BE SKIPPED
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              marginTop: 14, padding: "10px 12px",
+              background: "rgba(232, 85, 63, 0.1)",
+              border: "1px solid rgba(232, 85, 63, 0.35)",
+              color: "#E8553F", fontSize: 13, borderRadius: 4,
+            }}>{error}</div>
+          )}
+
+          <button
+            onClick={handleExport}
+            disabled={!exportableCount || exporting}
+            style={{
+              marginTop: 20, width: "100%",
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10,
               padding: "14px 20px", borderRadius: 4,
-              background: tracks.length ? "#1DB954" : "rgba(29, 185, 84, 0.3)",
+              background: exportableCount ? "#1DB954" : "rgba(29, 185, 84, 0.3)",
               color: "#0E0B08", border: "none",
               fontFamily: "'Inter Tight', sans-serif", fontSize: 14, fontWeight: 700,
-              cursor: tracks.length ? "pointer" : "not-allowed",
-              opacity: exporting === "spotify" ? 0.6 : 1,
-            }}>
-              <window.SpotifyGlyph size={18}/>
-              {exporting === "spotify" ? "Creating playlist…" : "Save to Spotify"}
-            </button>
-            <button onClick={() => handleExport("apple")} disabled={!tracks.length || exporting} style={{
-              flex: 1, minWidth: 200,
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10,
-              padding: "14px 20px", borderRadius: 4,
-              background: tracks.length ? "#FA2D48" : "rgba(250, 45, 72, 0.3)",
-              color: "#F4EAD8", border: "none",
-              fontFamily: "'Inter Tight', sans-serif", fontSize: 14, fontWeight: 700,
-              cursor: tracks.length ? "pointer" : "not-allowed",
-              opacity: exporting === "apple" ? 0.6 : 1,
-            }}>
-              <window.AppleMusicGlyph size={18}/>
-              {exporting === "apple" ? "Saving…" : "Save to Apple Music"}
-            </button>
-          </div>
+              cursor: exportableCount ? "pointer" : "not-allowed",
+              opacity: exporting ? 0.7 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
+            <window.SpotifyGlyph size={18}/>
+            {exporting ? "Creating playlist…" : exportableCount ? `Save to Spotify (${exportableCount} tracks)` : "No Spotify tracks yet"}
+          </button>
+
           <div style={{
-            marginTop: 10,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: "rgba(244, 234, 216, 0.4)", letterSpacing: "0.06em",
+            marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            color: "rgba(244, 234, 216, 0.35)", letterSpacing: "0.06em",
           }}>
-            BOTH SERVICES SUPPORTED · ALWAYS · NO MATTER WHO'S SHARING
+            YOU'LL BE ASKED TO SIGN INTO SPOTIFY ONCE · PLAYLIST SAVES TO YOUR LIBRARY
           </div>
         </div>
       </div>
 
-      {/* Track preview */}
+      {/* Tracklist preview */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16 }}>
         <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "baseline",
-          marginBottom: 12,
+          display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12,
         }}>
           <h3 style={{
             fontFamily: "'Bricolage Grotesque', serif", fontWeight: 600,
@@ -176,6 +211,7 @@ function ExportSheet({ open, onClose, request, state, onToast }) {
               <div key={`${t.artistId}-${t.id}`} style={{
                 display: "grid", gridTemplateColumns: "24px 36px 1fr auto auto", gap: 12,
                 alignItems: "center", padding: "6px 8px",
+                opacity: t.spotifyUri ? 1 : 0.45,
               }}>
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
@@ -197,7 +233,7 @@ function ExportSheet({ open, onClose, request, state, onToast }) {
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
                   color: "rgba(244, 234, 216, 0.4)",
-                }}>{t.duration}</span>
+                }}>{t.duration || fmtMs(t.durationMs)}</span>
               </div>
             ))}
             {tracks.length > 30 && (
@@ -229,12 +265,22 @@ function Stat2({ label, value }) {
   );
 }
 
+function fmtMs(ms) {
+  if (!ms) return "";
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 function fmtTotal(tracks) {
   let total = 0;
   for (const t of tracks) {
     if (t.duration) {
       const [m, s] = t.duration.split(":").map(Number);
       total += m * 60 + (s || 0);
+    } else if (t.durationMs) {
+      total += Math.round(t.durationMs / 1000);
     }
   }
   if (total === 0) return "—";

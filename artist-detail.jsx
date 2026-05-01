@@ -247,14 +247,31 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
   const [pickedIds, setPickedIds] = useStateA(new Set());
   const inputRef = useRefA(null);
 
+  async function spotifySearch(artistName, q) {
+    const params = new URLSearchParams({ artist: artistName });
+    if (q) params.set("q", q);
+    const res = await fetch(`/api/music/search?${params.toString()}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    // Normalize to app track shape (use spotifyTrackId as id)
+    return (data.tracks || []).map(t => ({
+      ...t,
+      id: t.spotifyTrackId,
+      artist: artistName,
+      artistId: artist?.id,
+    }));
+  }
+
   useEffectA(() => {
     if (open) {
       setPickedIds(new Set());
       setQuery("");
-      // Default: show this artist's tracks
       if (artist) {
-        const tracks = window.tracksForArtist(artist.artist);
-        setResults(tracks);
+        setSearching(true);
+        spotifySearch(artist.artist, "")
+          .then(setResults)
+          .catch(() => setResults([]))
+          .finally(() => setSearching(false));
       }
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -263,20 +280,13 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
   // Debounced search
   useEffectA(() => {
     if (!open) return;
-    if (!query.trim()) {
-      if (artist) setResults(window.tracksForArtist(artist.artist));
-      return;
-    }
     setSearching(true);
     const t = setTimeout(() => {
-      // First search the artist's own catalog matching the query, then fall back to all tracks
-      let local = artist
-        ? window.tracksForArtist(artist.artist).filter(tr => `${tr.title} ${tr.album}`.toLowerCase().includes(query.toLowerCase()))
-        : [];
-      const global = window.searchTracks(query).filter(tr => !local.find(l => l.id === tr.id));
-      setResults([...local, ...global]);
-      setSearching(false);
-    }, 200);
+      spotifySearch(artist?.artist || "", query)
+        .then(setResults)
+        .catch(() => setResults([]))
+        .finally(() => setSearching(false));
+    }, 350);
     return () => clearTimeout(t);
   }, [query, open, artist]);
 
