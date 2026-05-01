@@ -244,6 +244,7 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
   const [query, setQuery] = useStateA("");
   const [results, setResults] = useStateA([]);
   const [searching, setSearching] = useStateA(false);
+  const [searchError, setSearchError] = useStateA(null);
   const [pickedIds, setPickedIds] = useStateA(new Set());
   const inputRef = useRefA(null);
 
@@ -251,9 +252,8 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
     const params = new URLSearchParams({ artist: artistName });
     if (q) params.set("q", q);
     const res = await fetch(`/api/music/search?${params.toString()}`);
-    if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    // Normalize to app track shape (use spotifyTrackId as id)
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return (data.tracks || []).map(t => ({
       ...t,
       id: t.spotifyTrackId,
@@ -266,25 +266,27 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
     if (open) {
       setPickedIds(new Set());
       setQuery("");
+      setSearchError(null);
       if (artist) {
         setSearching(true);
         spotifySearch(artist.artist, "")
-          .then(setResults)
-          .catch(() => setResults([]))
+          .then(tracks => { setResults(tracks); setSearchError(null); })
+          .catch(err => { setResults([]); setSearchError(err.message); })
           .finally(() => setSearching(false));
       }
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, artist]);
 
-  // Debounced search
+  // Debounced search on query change
   useEffectA(() => {
     if (!open) return;
     setSearching(true);
+    setSearchError(null);
     const t = setTimeout(() => {
       spotifySearch(artist?.artist || "", query)
-        .then(setResults)
-        .catch(() => setResults([]))
+        .then(tracks => { setResults(tracks); setSearchError(null); })
+        .catch(err => { setResults([]); setSearchError(err.message); })
         .finally(() => setSearching(false));
     }, 350);
     return () => clearTimeout(t);
@@ -303,6 +305,15 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
     const picks = results.filter(r => pickedIds.has(r.id));
     onAdd(picks);
   };
+
+  function fmtDuration(t) {
+    if (t.duration) return t.duration;
+    if (t.durationMs) {
+      const s = Math.round(t.durationMs / 1000);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    }
+    return "";
+  }
 
   return (
     <window.Modal open={open} onClose={onClose} maxWidth={620}>
@@ -338,7 +349,7 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder={artist ? `Filter ${artist.artist}'s tracks…` : "Search by song or album…"}
+            placeholder={artist ? `Search ${artist.artist} songs…` : "Search by song or album…"}
             style={{
               width: "100%", padding: "12px 14px 12px 40px",
               background: "#0E0B08", color: "#F4EAD8",
@@ -353,7 +364,19 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
       <div style={{ overflowY: "auto", flex: 1, maxHeight: 360, padding: "8px 12px" }}>
         {searching ? (
           <div style={{ padding: 32, textAlign: "center", color: "rgba(244,234,216,0.4)", fontSize: 13 }}>
-            searching…
+            Searching Spotify…
+          </div>
+        ) : searchError ? (
+          <div style={{ padding: 24, margin: 12, borderRadius: 4, background: "rgba(232,85,63,0.08)", border: "1px solid rgba(232,85,63,0.3)" }}>
+            <div style={{ color: "#E8553F", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.06em", marginBottom: 6 }}>
+              SPOTIFY ERROR
+            </div>
+            <div style={{ color: "rgba(244,234,216,0.8)", fontSize: 13 }}>{searchError}</div>
+            {searchError.includes("not configured") && (
+              <div style={{ marginTop: 10, color: "rgba(244,234,216,0.5)", fontSize: 12 }}>
+                Add <code style={{ background: "rgba(255,255,255,0.06)", padding: "1px 5px", borderRadius: 3 }}>SPOTIFY_CLIENT_ID</code> and <code style={{ background: "rgba(255,255,255,0.06)", padding: "1px 5px", borderRadius: 3 }}>SPOTIFY_CLIENT_SECRET</code> to your Railway environment variables.
+              </div>
+            )}
           </div>
         ) : results.length === 0 ? (
           <div style={{ padding: 32, textAlign: "center", color: "rgba(244,234,216,0.4)", fontSize: 13 }}>
@@ -383,7 +406,7 @@ function AddSongModal({ open, artist, onClose, onAdd, currentUser }) {
               <span style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
                 color: "rgba(244, 234, 216, 0.4)",
-              }}>{t.duration}</span>
+              }}>{fmtDuration(t)}</span>
               <div style={{
                 width: 22, height: 22, borderRadius: "50%",
                 border: pickedIds.has(t.id) ? "none" : "1.5px solid rgba(255,255,255,0.25)",
