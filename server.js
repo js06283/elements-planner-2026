@@ -43,28 +43,38 @@ function getSpotifyRedirectUri(req) {
 
 function requestJson(url, options = {}, body = null) {
 	return new Promise((resolve, reject) => {
-		const request = https.request(url, options, (response) => {
+		// Parse URL explicitly to avoid query-string corruption when https.request
+		// merges a URL string with an options object (Node.js behaviour varies).
+		const parsed = new URL(url);
+		const reqOptions = {
+			hostname: parsed.hostname,
+			port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+			path: parsed.pathname + parsed.search,
+			...options,
+		};
+		const request = https.request(reqOptions, (response) => {
 			let data = "";
 			response.on("data", (chunk) => {
 				data += chunk;
 			});
 			response.on("end", () => {
-				let parsed = null;
+				let json = null;
 				try {
-					parsed = data ? JSON.parse(data) : {};
+					json = data ? JSON.parse(data) : {};
 				} catch (error) {
 					return reject(new Error(`Invalid JSON from ${url}: ${data}`));
 				}
 				if (response.statusCode < 200 || response.statusCode >= 300) {
 					const message =
-						parsed?.error_description ||
-						parsed?.error?.message ||
-						parsed?.error ||
+						json?.error_description ||
+						json?.error?.message ||
+						json?.error ||
 						data ||
 						response.statusMessage;
+					console.error(`[spotify] ${response.statusCode} from ${reqOptions.path} — raw: ${data}`);
 					return reject(new Error(`HTTP ${response.statusCode}: ${message}`));
 				}
-				resolve(parsed);
+				resolve(json);
 			});
 		});
 		request.on("error", reject);
