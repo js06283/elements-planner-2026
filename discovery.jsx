@@ -21,7 +21,8 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
       return true;
     });
     if (sort === "fans") {
-      out = [...out].sort((a, b) => (state.fans[b.id]?.length || 0) - (state.fans[a.id]?.length || 0));
+      const score = id => (state.fans[id]?.length || 0) + (state.mustSeeByArtist[id]?.length || 0) * 2;
+      out = [...out].sort((a, b) => score(b.id) - score(a.id));
     } else if (sort === "songs") {
       out = [...out].sort((a, b) => (state.songsByArtist[b.id]?.length || 0) - (state.songsByArtist[a.id]?.length || 0));
     }
@@ -74,10 +75,12 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
             key={a.id}
             artist={a}
             fans={state.fans[a.id] || []}
+            mustSee={(state.mustSeeByArtist || {})[a.id] || []}
             songs={state.songsByArtist[a.id] || []}
             comments={(state.commentsByArtist || {})[a.id] || []}
             currentUser={currentUser}
             onToggleFan={() => dispatch({ type: "toggleFan", artistId: a.id, user: currentUser })}
+            onToggleMustSee={() => dispatch({ type: "toggleMustSee", artistId: a.id, user: currentUser })}
             onClick={() => onArtistClick(a)}
             onAddSong={() => onAddSong(a)}
           />
@@ -156,8 +159,9 @@ function Stat({ label, value }) {
 }
 
 // — Artist card ————————————————————————
-function ArtistCard({ artist, fans, songs, comments, currentUser, onToggleFan, onClick, onAddSong }) {
+function ArtistCard({ artist, fans, mustSee, songs, comments, currentUser, onToggleFan, onToggleMustSee, onClick, onAddSong }) {
   const isFan = fans.includes(currentUser);
+  const isMustSee = mustSee.includes(currentUser);
   const tint = window.STAGE_TINTS[artist.stage];
   // Top 4 songs by hearts (fall back to first 4 added)
   const topSongs = [...songs].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0)).slice(0, 4);
@@ -188,20 +192,30 @@ function ArtistCard({ artist, fans, songs, comments, currentUser, onToggleFan, o
           }}>{artist.day.toUpperCase()}</span>
         </div>
 
-        {/* Heart top-right */}
-        <button onClick={e => { e.stopPropagation(); onToggleFan(); }} style={{
-          position: "absolute", top: 12, right: 12,
-          width: 36, height: 36, borderRadius: "50%",
-          background: isFan ? "#E8553F" : "rgba(14, 11, 8, 0.85)",
-          color: isFan ? "#0E0B08" : "#F4EAD8",
-          border: `1px solid ${isFan ? "#E8553F" : "rgba(255,255,255,0.15)"}`,
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.15s",
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill={isFan ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.2">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
-        </button>
+        {/* Fan + must-see buttons top-right */}
+        <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 6 }}
+          onClick={e => e.stopPropagation()}>
+          <button onClick={onToggleMustSee} title="Must See" style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: isMustSee ? "#E8C77A" : "rgba(14, 11, 8, 0.85)",
+            color: isMustSee ? "#0E0B08" : "#F4EAD8",
+            border: `1px solid ${isMustSee ? "#E8C77A" : "rgba(255,255,255,0.15)"}`,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s", fontSize: 16,
+          }}>★</button>
+          <button onClick={onToggleFan} title="Fan" style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: isFan ? "#E8553F" : "rgba(14, 11, 8, 0.85)",
+            color: isFan ? "#0E0B08" : "#F4EAD8",
+            border: `1px solid ${isFan ? "#E8553F" : "rgba(255,255,255,0.15)"}`,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill={isFan ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
+        </div>
 
         {/* Time + stage bottom-right */}
         <div style={{ position: "absolute", bottom: 12, right: 12, display: "flex", gap: 6 }}>
@@ -245,13 +259,16 @@ function ArtistCard({ artist, fans, songs, comments, currentUser, onToggleFan, o
           gap: 10, paddingTop: 12, borderTop: "1px dashed rgba(255,255,255,0.08)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {fans.length > 0 ? (
+            {(fans.length + mustSee.length) > 0 ? (
               <>
-                <window.AvatarStack names={fans} size={22} max={4}/>
+                <window.AvatarStack names={[...mustSee, ...fans.filter(n => !mustSee.includes(n))]} size={22} max={4}/>
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                   color: "rgba(244, 234, 216, 0.55)",
-                }}>{fans.length} {fans.length === 1 ? "fan" : "fans"}</span>
+                }}>
+                  {mustSee.length > 0 && <span style={{ color: "#E8C77A" }}>★{mustSee.length} </span>}
+                  {fans.length > 0 && `♥${fans.length}`}
+                </span>
               </>
             ) : (
               <span style={{

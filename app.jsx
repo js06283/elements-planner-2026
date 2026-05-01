@@ -9,10 +9,25 @@ function appReducer(state, action) {
       return { ...state, currentUser: action.user };
     case "toggleFan": {
       const fans = state.fans[action.artistId] || [];
-      const next = fans.includes(action.user)
-        ? fans.filter(n => n !== action.user)
-        : [...fans, action.user];
-      return { ...state, fans: { ...state.fans, [action.artistId]: next } };
+      const isFan = fans.includes(action.user);
+      // Selecting fan removes must-see; deselecting fan just removes fan.
+      const mustSee = (state.mustSeeByArtist[action.artistId] || []).filter(n => n !== action.user);
+      return {
+        ...state,
+        fans: { ...state.fans, [action.artistId]: isFan ? fans.filter(n => n !== action.user) : [...fans, action.user] },
+        mustSeeByArtist: { ...state.mustSeeByArtist, [action.artistId]: mustSee },
+      };
+    }
+    case "toggleMustSee": {
+      const mustSee = state.mustSeeByArtist[action.artistId] || [];
+      const isMustSee = mustSee.includes(action.user);
+      // Selecting must-see removes regular fan; deselecting just removes must-see.
+      const fans = (state.fans[action.artistId] || []).filter(n => n !== action.user);
+      return {
+        ...state,
+        mustSeeByArtist: { ...state.mustSeeByArtist, [action.artistId]: isMustSee ? mustSee.filter(n => n !== action.user) : [...mustSee, action.user] },
+        fans: { ...state.fans, [action.artistId]: fans },
+      };
     }
     case "addSongs": {
       const existing = state.songsByArtist[action.artistId] || [];
@@ -91,7 +106,7 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  return { fans: {}, songsByArtist: {}, commentsByArtist: {}, currentUser: "" };
+  return { fans: {}, mustSeeByArtist: {}, songsByArtist: {}, commentsByArtist: {}, currentUser: "" };
 }
 
 const STORAGE_KEY = "elements26-songsfans-v2";
@@ -125,6 +140,7 @@ function App() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         fans: state.fans,
+        mustSeeByArtist: state.mustSeeByArtist,
         songsByArtist: state.songsByArtist,
         commentsByArtist: state.commentsByArtist,
         currentUser: state.currentUser,
