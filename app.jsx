@@ -66,76 +66,10 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  // Pre-populate fans + songs across the lineup.
-  const fans = {};
-  const songsByArtist = {};
-
-  const seedFans = {
-    "PORTER ROBINSON":  ["Jess", "Theo", "Andy", "Noel", "Ellen", "PJ"],
-    "SUBTRONICS":       ["Kevin", "Andy", "Theo"],
-    "EXCISION":         ["Kevin", "Andy"],
-    "CHARLOTTE DE WITTE": ["Jess", "Ellen", "Cindy"],
-    "CHRIS LAKE":       ["Jess", "PJ", "Theo"],
-    "ABOVE & BEYOND":   ["Ellen", "Noel", "Cindy"],
-    "CLOZEE":           ["Noel", "PJ", "Jess"],
-    "RAY VOLPE":        ["Kevin"],
-    "LOUIS THE CHILD":  ["Theo", "Jess", "Andy"],
-    "KETTAMA":          ["PJ"],
-    "I HATE MODELS":    ["Cindy", "Ellen"],
-    "GANJA WHITE NIGHT": ["Andy", "Kevin"],
-    "ACRAZE":           ["PJ"],
-    "IVY LAB":          ["Noel"],
-  };
-  for (const a of window.ARTISTS) {
-    if (seedFans[a.artist]) fans[a.id] = seedFans[a.artist];
-  }
-
-  // Seed songs: top tracks already added by various people
-  const seedSongs = [
-    { artist: "PORTER ROBINSON", trackIds: ["pr-r4", "pr-r3", "pr-r5"], by: ["Jess", "Theo", "Noel"] },
-    { artist: "PORTER ROBINSON", trackIds: ["pr-r1"], by: ["Andy"] },
-    { artist: "SUBTRONICS",      trackIds: ["sb-2", "sb-1"], by: ["Kevin", "Andy"] },
-    { artist: "EXCISION",        trackIds: ["ex-ahn", "ex-rob"], by: ["Kevin", "Kevin"] },
-    { artist: "CHARLOTTE DE WITTE", trackIds: ["cdw-1", "cdw-2"], by: ["Jess", "Ellen"] },
-    { artist: "CHRIS LAKE",      trackIds: ["cl-tut", "cl-ofu"], by: ["Jess", "PJ"] },
-    { artist: "ABOVE & BEYOND",  trackIds: ["ab-sun", "ab-thg"], by: ["Ellen", "Noel"] },
-    { artist: "CLOZEE",          trackIds: ["cz-1", "cz-2"], by: ["Noel", "PJ"] },
-    { artist: "LOUIS THE CHILD", trackIds: ["lc-1", "lc-2"], by: ["Theo", "Jess"] },
-    { artist: "ACRAZE",          trackIds: ["ac-1"], by: ["PJ"] },
-    { artist: "RAY VOLPE",       trackIds: ["rv-1", "rv-3"], by: ["Kevin", "Andy"] },
-    { artist: "IVY LAB",         trackIds: ["iv-1"], by: ["Noel"] },
-    { artist: "KETTAMA",         trackIds: ["kt-1"], by: ["PJ"] },
-    { artist: "I HATE MODELS",   trackIds: ["ihm-1"], by: ["Cindy"] },
-    { artist: "GANJA WHITE NIGHT", trackIds: ["gwn-1"], by: ["Kevin"] },
-  ];
-
-  let now = Date.now();
-  for (const seed of seedSongs) {
-    const a = window.ARTISTS.find(x => x.artist === seed.artist);
-    if (!a) continue;
-    const arr = songsByArtist[a.id] || [];
-    seed.trackIds.forEach((tid, i) => {
-      const track = (window.TRACK_CATALOG[seed.artist] || []).find(t => t.id === tid);
-      if (!track) return;
-      const addedBy = seed.by[i] || seed.by[0];
-      // Random hearts: addedBy + 0-3 random friends
-      const friends = window.FRIENDS.map(f => f.name).filter(n => n !== addedBy);
-      const heartCount = Math.floor(Math.random() * 4);
-      const hearts = [addedBy, ...friends.sort(() => 0.5 - Math.random()).slice(0, heartCount)];
-      arr.push({
-        ...track,
-        addedBy,
-        addedAt: now -= 1000 * 60 * (5 + Math.random() * 60),
-        hearts,
-      });
-    });
-    songsByArtist[a.id] = arr;
-  }
-
-  return { fans, songsByArtist, currentUser: "Jess" };
+  return { fans: {}, songsByArtist: {}, currentUser: "" };
 }
 
-const STORAGE_KEY = "elements26-songsfans-v1";
+const STORAGE_KEY = "elements26-songsfans-v2";
 
 // ---- Tweakable defaults -----------------------------------------------------
 const TWEAKS = /*EDITMODE-BEGIN*/{
