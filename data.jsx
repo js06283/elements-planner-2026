@@ -57,7 +57,7 @@ const LINEUP = [
   { day: "Friday",   artist: "Excision",             genre: "Dubstep" },
   { day: "Friday",   artist: "Ganja White Night",    genre: "Dubstep" },
   { day: "Friday",   artist: "Its Murph",            genre: "House" },
-  { day: "Friday",   artist: "Juelz",               genre: "Trap",    searchAs: "Juelz DJ electronic" },
+  { day: "Friday",   artist: "Jigitz",              genre: "Trap" },
   { day: "Friday",   artist: "Kettama",             genre: "Techno" },
   { day: "Friday",   artist: "Mersiv",              genre: "Dubstep" },
   { day: "Friday",   artist: "Zingara",             genre: "Bass" },
