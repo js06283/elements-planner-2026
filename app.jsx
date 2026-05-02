@@ -1,6 +1,6 @@
 // Main app — top-level state, navigation, profile picker, and view orchestration.
 
-const { useState: useStateApp, useReducer, useEffect: useEffectApp } = React;
+const { useState: useStateApp, useReducer, useEffect: useEffectApp, useRef: useRefApp } = React;
 
 // ---- State reducer ---------------------------------------------------------
 function appReducer(state, action) {
@@ -143,7 +143,7 @@ function App() {
   const [profileOpen, setProfileOpen] = useStateApp(false);
   const [tweaks, setTweak] = window.useTweaks ? window.useTweaks(TWEAKS) : [TWEAKS, () => {}];
 
-  // Persist
+  // Persist to localStorage
   useEffectApp(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -156,6 +156,65 @@ function App() {
       }));
     } catch {}
   }, [state]);
+
+  // --- Server sync (shared state across all browsers/devices) ---
+  const lastSyncRef = useRefApp(0);
+
+  function applyServerState(data) {
+    if (!data) return;
+    const hasData = Object.keys(data.fans || {}).length > 0
+      || Object.keys(data.songsByArtist || {}).length > 0
+      || Object.keys(data.commentsByArtist || {}).length > 0
+      || Object.keys(data.mustSeeByArtist || {}).length > 0
+      || Object.keys(data.curiousByArtist || {}).length > 0;
+    if (!hasData) return;
+    dispatch({ type: "loadFromStorage", payload: {
+      fans: data.fans || {},
+      mustSeeByArtist: data.mustSeeByArtist || {},
+      curiousByArtist: data.curiousByArtist || {},
+      songsByArtist: data.songsByArtist || {},
+      commentsByArtist: data.commentsByArtist || {},
+    }});
+  }
+
+  // Load from server on mount (overrides localStorage with shared group state)
+  useEffectApp(() => {
+    fetch("/api/app-state")
+      .then(r => r.json())
+      .then(applyServerState)
+      .catch(() => {});
+  }, []);
+
+  // Save to server debounced 800ms after any shared state change
+  useEffectApp(() => {
+    const timer = setTimeout(() => {
+      lastSyncRef.current = Date.now();
+      fetch("/api/app-state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fans: state.fans,
+          mustSeeByArtist: state.mustSeeByArtist,
+          curiousByArtist: state.curiousByArtist,
+          songsByArtist: state.songsByArtist,
+          commentsByArtist: state.commentsByArtist,
+        }),
+      }).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist]);
+
+  // Poll every 15s so changes from other devices appear without a refresh
+  useEffectApp(() => {
+    const interval = setInterval(() => {
+      if (Date.now() - lastSyncRef.current < 4000) return; // skip if we just saved
+      fetch("/api/app-state")
+        .then(r => r.json())
+        .then(applyServerState)
+        .catch(() => {});
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Resume Spotify export after OAuth redirect
   useEffectApp(() => {

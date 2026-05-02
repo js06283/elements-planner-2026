@@ -16,7 +16,7 @@ const pool = new Pool({
 			: false,
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "4mb" }));
 app.use(express.static(path.join(__dirname), {
 	setHeaders(res, filePath) {
 		if (filePath.endsWith(".jsx")) {
@@ -235,6 +235,14 @@ async function initDb() {
 			lineup_artist TEXT NOT NULL DEFAULT '',
 			timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			UNIQUE (show_id, spotify_track_id)
+		);
+	`);
+
+	await pool.query(`
+		CREATE TABLE IF NOT EXISTS app_state (
+			key TEXT PRIMARY KEY,
+			data JSONB NOT NULL DEFAULT '{}'::jsonb,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 	`);
 }
@@ -1023,6 +1031,41 @@ app.post("/api/admin/migrate-show-ids", async (req, res) => {
 	} catch (error) {
 		await pool.query("ROLLBACK");
 		res.status(500).json({ ok: false, error: error.message });
+	}
+});
+
+// Shared React app state — fans, songs, comments, reactions (keyed by art-N ids)
+app.get("/api/app-state", async (_req, res) => {
+	try {
+		const result = await pool.query(
+			"SELECT data FROM app_state WHERE key = 'elements26'"
+		);
+		res.json(result.rows[0]?.data || {});
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+});
+
+app.put("/api/app-state", async (req, res) => {
+	try {
+		const { fans, mustSeeByArtist, curiousByArtist, songsByArtist, commentsByArtist } = req.body;
+		const data = {
+			fans: fans || {},
+			mustSeeByArtist: mustSeeByArtist || {},
+			curiousByArtist: curiousByArtist || {},
+			songsByArtist: songsByArtist || {},
+			commentsByArtist: commentsByArtist || {},
+		};
+		await pool.query(
+			`INSERT INTO app_state (key, data, updated_at)
+			 VALUES ('elements26', $1::jsonb, NOW())
+			 ON CONFLICT (key)
+			 DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+			[JSON.stringify(data)]
+		);
+		res.json({ ok: true });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
 	}
 });
 
