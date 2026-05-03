@@ -446,7 +446,7 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
     { id: "discovery", label: "Discovery" },
     { id: "songs",     label: "Songs" },
     { id: "schedule",  label: "Schedule", disabled: true },
-    { id: "vibe",      label: "Vibe" },
+    { id: "vibe",      label: "Profiles" },
   ];
   return (
     <header style={{
