@@ -123,8 +123,21 @@ function appReducer(state, action) {
       }
       return { ...state, vibePositions: { ...prev, [action.user]: action.pos } };
     }
-    case "loadFromStorage":
-      return { ...state, ...action.payload };
+    case "loadFromStorage": {
+      const next = { ...state, ...action.payload };
+      // Merge profiles per-user: server wins for users it knows about,
+      // local wins for users the server has never seen (handles fresh deployments).
+      if (action.payload.profiles !== undefined) {
+        const local = state.profiles || {};
+        const server = action.payload.profiles || {};
+        const merged = { ...local };
+        for (const user of Object.keys(server)) {
+          merged[user] = server[user]; // server is authoritative per user once it has them
+        }
+        next.profiles = merged;
+      }
+      return next;
+    }
     default:
       return state;
   }
@@ -188,7 +201,8 @@ function App() {
       || Object.keys(data.commentsByArtist || {}).length > 0
       || Object.keys(data.mustSeeByArtist || {}).length > 0
       || Object.keys(data.curiousByArtist || {}).length > 0
-      || Object.keys(data.vibePositions || {}).length > 0;
+      || Object.keys(data.vibePositions || {}).length > 0
+      || Object.keys(data.profiles || {}).length > 0;
     if (!hasData) return;
     const payload = {
       fans: data.fans || {},
