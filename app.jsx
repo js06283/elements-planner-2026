@@ -250,6 +250,29 @@ function App() {
     return () => clearTimeout(timer);
   }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.extraFriends, state.profiles]);
 
+  // Save profiles immediately to DB whenever they change (no debounce — photos/bio must not get lost)
+  const profilesRef = useRefApp(state.profiles);
+  useEffectApp(() => {
+    if (state.profiles === profilesRef.current) return;
+    profilesRef.current = state.profiles;
+    if (!state.profiles || Object.keys(state.profiles).length === 0) return;
+    lastSyncRef.current = Date.now();
+    fetch("/api/app-state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fans: state.fans,
+        mustSeeByArtist: state.mustSeeByArtist,
+        curiousByArtist: state.curiousByArtist,
+        songsByArtist: state.songsByArtist,
+        commentsByArtist: state.commentsByArtist,
+        vibePositions: state.vibePositions,
+        extraFriends: state.extraFriends,
+        profiles: state.profiles,
+      }),
+    }).catch(() => {});
+  }, [state.profiles]);
+
   // Force profile modal open until a user is chosen
   useEffectApp(() => {
     if (!currentUser) setProfileOpen(true);
