@@ -135,20 +135,20 @@ function StageTag({ stage }) {
 }
 
 // — Modal shell ————————————————————————
-function Modal({ open, onClose, children, maxWidth = 720 }) {
+function Modal({ open, onClose, children, maxWidth = 720, required = false }) {
   useEffect(() => {
     if (!open) return;
-    const onEsc = (e) => { if (e.key === "Escape") onClose(); };
+    const onEsc = (e) => { if (e.key === "Escape" && !required) onClose(); };
     window.addEventListener("keydown", onEsc);
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onEsc);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
+  }, [open, onClose, required]);
   if (!open) return null;
   return (
-    <div onClick={onClose} style={{
+    <div onClick={required ? undefined : onClose} style={{
       position: "fixed", inset: 0, zIndex: 200,
       background: "rgba(8, 5, 3, 0.7)", backdropFilter: "blur(8px)",
       display: "flex", alignItems: "center", justifyContent: "center",

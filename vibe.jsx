@@ -1,12 +1,11 @@
-// Vibe tab — triangle plot letting users place themselves in the House / Bass / Techno space.
+// Vibe tab — triangle plot + profile builder (emoji, bio, vibe position).
 
-const { useState: useVibeState, useRef: useVibeRef } = React;
+const { useState: useVibeState, useRef: useVibeRef, useEffect: useVibeEffect } = React;
 
-// SVG viewBox 0 0 600 560
 const VTX = {
-  H: { x: 300, y: 44  },  // House  — top
-  B: { x: 52,  y: 502 },  // Bass   — bottom-left
-  T: { x: 548, y: 502 },  // Techno — bottom-right
+  H: { x: 300, y: 44  },
+  B: { x: 52,  y: 502 },
+  T: { x: 548, y: 502 },
 };
 
 function baryToSvg(h, b, t) {
@@ -30,7 +29,6 @@ function svgToBary(px, py) {
   };
 }
 
-// Pre-plotted artists — hand-tuned to feel accurate
 const VIBE_ARTISTS = [
   { name: "Chris Lake",         h: 0.82, b: 0.08, t: 0.10 },
   { name: "Charlotte de Witte", h: 0.05, b: 0.06, t: 0.89 },
@@ -38,29 +36,186 @@ const VIBE_ARTISTS = [
   { name: "Porter Robinson",    h: 0.46, b: 0.35, t: 0.19 },
 ];
 
-// Subcategory labels along the edges and interior
-// Each has barycentric position + a text anchor hint
 const SUBGENRES = [
-  // Edge midpoints
-  { label: "Tech House",   h: 0.46, b: 0.04, t: 0.50, anchor: "middle" },
-  { label: "Future Bass",  h: 0.46, b: 0.50, t: 0.04, anchor: "middle" },
-  { label: "Drum & Bass",  h: 0.04, b: 0.49, t: 0.47, anchor: "middle" },
-  // Interior zone labels
-  { label: "Hard Techno",    h: 0.10, b: 0.14, t: 0.76, anchor: "middle" },
-  { label: "Melodic Techno", h: 0.26, b: 0.05, t: 0.69, anchor: "middle" },
-  { label: "Dubstep",        h: 0.08, b: 0.76, t: 0.16, anchor: "middle" },
-  { label: "Trap",           h: 0.18, b: 0.72, t: 0.10, anchor: "middle" },
-  { label: "Deep House",     h: 0.74, b: 0.16, t: 0.10, anchor: "middle" },
-  { label: "UK Garage",      h: 0.60, b: 0.28, t: 0.12, anchor: "middle" },
+  { label: "Tech House",    h: 0.46, b: 0.04, t: 0.50 },
+  { label: "Future Bass",   h: 0.46, b: 0.50, t: 0.04 },
+  { label: "Drum & Bass",   h: 0.04, b: 0.49, t: 0.47 },
+  { label: "Hard Techno",   h: 0.10, b: 0.14, t: 0.76 },
+  { label: "Melodic Techno",h: 0.26, b: 0.05, t: 0.69 },
+  { label: "Dubstep",       h: 0.08, b: 0.76, t: 0.16 },
+  { label: "Trap",          h: 0.18, b: 0.72, t: 0.10 },
+  { label: "Deep House",    h: 0.74, b: 0.16, t: 0.10 },
+  { label: "UK Garage",     h: 0.60, b: 0.28, t: 0.12 },
+];
+
+const EMOJIS = [
+  "🎵","🎶","🎸","🎹","🎤","🎧","🥁","🎺","🎷","🎼",
+  "🔊","🔥","⚡","🌊","🌙","☀️","🌸","🎉","🎪","💫",
+  "🦋","🐺","🦊","🐉","👾","🤖","🎭","🌈","💎","🖤",
 ];
 
 function pct(v) { return `${Math.round(v * 100)}%`; }
 
+// ---- Emoji picker popover --------------------------------------------------
+function EmojiPicker({ current, onPick, onClose }) {
+  return (
+    <div style={{
+      position: "absolute", top: "100%", left: 0, zIndex: 50,
+      marginTop: 6,
+      background: "#1A1510", border: "1px solid rgba(255,255,255,0.12)",
+      borderRadius: 8, padding: 10,
+      display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+    }}>
+      {EMOJIS.map(e => (
+        <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
+          width: 34, height: 34, fontSize: 18, lineHeight: 1,
+          background: current === e ? "rgba(232,199,122,0.2)" : "transparent",
+          border: current === e ? "1px solid rgba(232,199,122,0.5)" : "1px solid transparent",
+          borderRadius: 6, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>{e}</button>
+      ))}
+    </div>
+  );
+}
+
+// ---- Profile card (view-only for others, editable for self) ----------------
+function ProfileCard({ name, profile, vibePos, isSelf, onSave }) {
+  const friend = (window.FRIENDS || []).find(f => f.name === name);
+  const color = friend?.color || "#F4EAD8";
+  const [editBio, setEditBio] = useVibeState(false);
+  const [bio, setBio] = useVibeState(profile?.bio || "");
+  const [showEmoji, setShowEmoji] = useVibeState(false);
+
+  // Sync bio from prop when not editing (handles remote updates)
+  useVibeEffect(() => {
+    if (!editBio) setBio(profile?.bio || "");
+  }, [profile?.bio, editBio]);
+
+  const emoji = profile?.emoji || null;
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.03)",
+      border: `1px solid ${isSelf ? "rgba(232,199,122,0.25)" : "rgba(255,255,255,0.06)"}`,
+      borderRadius: 10, padding: "16px 18px",
+      position: "relative",
+    }}>
+      {/* Avatar + name row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            background: color,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: emoji ? 24 : 20, fontWeight: 800,
+            color: emoji ? "unset" : "#0E0B08",
+            flexShrink: 0,
+          }}>
+            {emoji || name.charAt(0)}
+          </div>
+          {isSelf && (
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowEmoji(v => !v)} style={{
+                position: "absolute", bottom: -24, left: "50%", transform: "translateX(-50%)",
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 4, color: "rgba(244,234,216,0.5)", cursor: "pointer",
+                fontSize: 10, padding: "2px 6px", whiteSpace: "nowrap",
+                fontFamily: "'Inter Tight', sans-serif", fontWeight: 600,
+              }}>pic</button>
+              {showEmoji && (
+                <EmojiPicker
+                  current={emoji}
+                  onPick={e => onSave({ emoji: e })}
+                  onClose={() => setShowEmoji(false)}
+                />
+              )}
+            </div>
+          )}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: "#F4EAD8", fontSize: 15, fontWeight: 700 }}>{name}</div>
+          {vibePos && (
+            <div style={{ color: "rgba(244,234,216,0.4)", fontSize: 11, marginTop: 2 }}>
+              {pct(vibePos.h)} House · {pct(vibePos.b)} Bass · {pct(vibePos.t)} Techno
+            </div>
+          )}
+        </div>
+        {isSelf && vibePos && (
+          <div style={{
+            marginLeft: "auto",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+            color: "#E8C77A", letterSpacing: "0.1em",
+          }}>YOU</div>
+        )}
+      </div>
+
+      {/* Bio */}
+      {isSelf ? (
+        <div style={{ marginTop: 8 }}>
+          {editBio ? (
+            <div>
+              <textarea
+                autoFocus
+                value={bio}
+                onChange={e => setBio(e.target.value)}
+                rows={3}
+                maxLength={160}
+                placeholder="tell the crew something about your taste..."
+                style={{
+                  width: "100%", background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.15)", borderRadius: 4,
+                  color: "#F4EAD8", padding: "8px 10px", resize: "none",
+                  fontFamily: "'Inter Tight', sans-serif", fontSize: 13,
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <button onClick={() => { onSave({ bio }); setEditBio(false); }} style={{
+                  padding: "6px 12px", borderRadius: 4, border: "none",
+                  background: "#E8C77A", color: "#0E0B08",
+                  fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer",
+                }}>Save</button>
+                <button onClick={() => { setBio(profile?.bio || ""); setEditBio(false); }} style={{
+                  padding: "6px 12px", borderRadius: 4, border: "none",
+                  background: "transparent", color: "rgba(244,234,216,0.4)",
+                  fontFamily: "'Inter Tight', sans-serif", fontSize: 12,
+                  cursor: "pointer",
+                }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setEditBio(true)} style={{
+              display: "block", width: "100%", textAlign: "left",
+              background: "transparent", border: "1px dashed rgba(255,255,255,0.1)",
+              borderRadius: 4, padding: "8px 10px", cursor: "pointer",
+              color: bio ? "#F4EAD8" : "rgba(244,234,216,0.3)",
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 13,
+            }}>
+              {bio || "add a bio…"}
+            </button>
+          )}
+        </div>
+      ) : (
+        profile?.bio && (
+          <p style={{ color: "rgba(244,234,216,0.6)", fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
+            {profile.bio}
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
+// ---- Main view -------------------------------------------------------------
 function VibeView({ state, dispatch, currentUser, onPickProfile }) {
   const [hovered, setHovered] = useVibeState(null);
   const svgRef = useVibeRef(null);
 
   const vibePositions = state.vibePositions || {};
+  const profiles = state.profiles || {};
   const myPos = vibePositions[currentUser];
 
   function getSvgPoint(e) {
@@ -85,7 +240,6 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
   function handleMouseMove(e) {
     const pt = getSvgPoint(e);
     if (!pt) { setHovered(null); return; }
-
     for (const [name, pos] of Object.entries(vibePositions)) {
       const sv = baryToSvg(pos.h, pos.b, pos.t);
       if (Math.hypot(pt.x - sv.x, pt.y - sv.y) < 20) {
@@ -105,13 +259,24 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
 
   const triPts = `${VTX.H.x},${VTX.H.y} ${VTX.B.x},${VTX.B.y} ${VTX.T.x},${VTX.T.y}`;
 
+  // People who have placed themselves, ordered: self first
+  const allFriends = [...window.FRIENDS, ...(state.extraFriends || []).filter(f => !window.FRIENDS.find(x => x.name === f.name))];
+  const placedPeople = allFriends.filter(f => vibePositions[f.name]);
+  const unplacedPeople = allFriends.filter(f => !vibePositions[f.name]);
+  const squadOrder = [
+    ...placedPeople.filter(f => f.name === currentUser),
+    ...placedPeople.filter(f => f.name !== currentUser),
+    ...unplacedPeople.filter(f => f.name === currentUser),
+  ];
+
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto" }}>
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h2 style={{
           fontFamily: "'Bricolage Grotesque', serif", fontWeight: 800,
-          fontSize: 28, color: "#F4EAD8", margin: "0 0 6px", letterSpacing: "-0.02em",
-        }}>Genre Vibe Map</h2>
+          fontSize: 28, color: "#F4EAD8", margin: "0 0 10px", letterSpacing: "-0.02em",
+        }}>Vibe Map</h2>
         {currentUser ? (
           <p style={{ color: "rgba(244,234,216,0.45)", fontSize: 13, margin: 0 }}>
             Click inside the triangle to place yourself.
@@ -126,16 +291,16 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
             fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
           }}>
             <span style={{ fontSize: 16 }}>👤</span>
-            Pick your profile to place yourself on the map →
+            Pick your profile to get started →
           </button>
         )}
       </div>
 
+      {/* Triangle */}
       <div style={{
         background: "rgba(255,255,255,0.025)",
         border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: 12,
-        overflow: "hidden",
+        borderRadius: 12, overflow: "hidden",
       }}>
         <svg
           ref={svgRef}
@@ -164,27 +329,20 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
             </filter>
           </defs>
 
-          {/* Gradient fills */}
           <polygon points={triPts} fill="url(#hGlow)" stroke="none"/>
           <polygon points={triPts} fill="url(#bGlow)" stroke="none"/>
           <polygon points={triPts} fill="url(#tGlow)" stroke="none"/>
-
-          {/* Triangle border */}
           <polygon points={triPts} fill="none" stroke="rgba(244,234,216,0.14)" strokeWidth="1.5"/>
 
-          {/* Subtle inner guide lines from each vertex to opposite midpoint */}
           {[
             [VTX.H, { x: (VTX.B.x + VTX.T.x) / 2, y: (VTX.B.y + VTX.T.y) / 2 }],
             [VTX.B, { x: (VTX.H.x + VTX.T.x) / 2, y: (VTX.H.y + VTX.T.y) / 2 }],
             [VTX.T, { x: (VTX.H.x + VTX.B.x) / 2, y: (VTX.H.y + VTX.B.y) / 2 }],
           ].map(([a, b], i) => (
-            <line key={i}
-              x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-              stroke="rgba(244,234,216,0.05)" strokeWidth="1" strokeDasharray="4 6"
-            />
+            <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+              stroke="rgba(244,234,216,0.05)" strokeWidth="1" strokeDasharray="4 6"/>
           ))}
 
-          {/* Vertex labels */}
           <text x={VTX.H.x} y={VTX.H.y - 16} textAnchor="middle"
             fill="#E8C77A" fontSize="15" fontFamily="'Bricolage Grotesque', serif"
             fontWeight="700" letterSpacing="0.1em">HOUSE</text>
@@ -195,81 +353,67 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
             fill="#7FB7E8" fontSize="15" fontFamily="'Bricolage Grotesque', serif"
             fontWeight="700" letterSpacing="0.1em">TECHNO</text>
 
-          {/* Vertex anchor dots */}
           <circle cx={VTX.H.x} cy={VTX.H.y} r="3.5" fill="#E8C77A" opacity="0.7"/>
           <circle cx={VTX.B.x} cy={VTX.B.y} r="3.5" fill="#E8553F" opacity="0.7"/>
           <circle cx={VTX.T.x} cy={VTX.T.y} r="3.5" fill="#7FB7E8" opacity="0.7"/>
 
-          {/* Subgenre zone labels */}
           {SUBGENRES.map(s => {
             const sv = baryToSvg(s.h, s.b, s.t);
             return (
-              <text key={s.label}
-                x={sv.x} y={sv.y}
-                textAnchor={s.anchor}
-                fill="rgba(244,234,216,0.28)"
-                fontSize="10"
-                fontFamily="'Inter Tight', sans-serif"
-                fontWeight="500"
-                letterSpacing="0.05em"
-                fontStyle="italic"
-              >{s.label}</text>
+              <text key={s.label} x={sv.x} y={sv.y} textAnchor="middle"
+                fill="rgba(244,234,216,0.28)" fontSize="10"
+                fontFamily="'Inter Tight', sans-serif" fontWeight="500"
+                letterSpacing="0.05em" fontStyle="italic">{s.label}</text>
             );
           })}
 
-          {/* Artist dots — rendered above subgenre labels, below user dots */}
           {VIBE_ARTISTS.map(a => {
             const sv = baryToSvg(a.h, a.b, a.t);
             const isHov = hovered?.kind === "artist" && hovered?.name === a.name;
             return (
               <g key={a.name}>
-                <circle
-                  cx={sv.x} cy={sv.y} r={isHov ? 9 : 6}
-                  fill="rgba(244,234,216,0.65)"
-                  stroke="rgba(244,234,216,0.4)" strokeWidth="1"
-                />
+                <circle cx={sv.x} cy={sv.y} r={isHov ? 9 : 6}
+                  fill="rgba(244,234,216,0.65)" stroke="rgba(244,234,216,0.4)" strokeWidth="1"/>
                 <text x={sv.x} y={sv.y + 17} textAnchor="middle"
                   fill="rgba(244,234,216,0.5)" fontSize="9"
-                  fontFamily="'Inter Tight', sans-serif" fontWeight="600"
-                >{a.name}</text>
+                  fontFamily="'Inter Tight', sans-serif" fontWeight="600">{a.name}</text>
               </g>
             );
           })}
 
-          {/* User dots */}
           {Object.entries(vibePositions).map(([name, pos]) => {
-            const friend = (window.FRIENDS || []).find(f => f.name === name);
+            const friend = allFriends.find(f => f.name === name);
             const color = friend?.color || "#F4EAD8";
+            const emoji = profiles[name]?.emoji;
             const sv = baryToSvg(pos.h, pos.b, pos.t);
             const isSelf = name === currentUser;
             const isHov = hovered?.kind === "user" && hovered?.name === name;
-            const r = isSelf ? 14 : 11;
+            const r = isSelf ? 16 : 12;
             return (
               <g key={name}>
                 {isSelf && (
                   <circle cx={sv.x} cy={sv.y} r={r + 7}
                     fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.3"/>
                 )}
-                <circle
-                  cx={sv.x} cy={sv.y} r={isHov && !isSelf ? 13 : r}
-                  fill={color}
-                  fillOpacity={isSelf ? 1 : 0.78}
-                  filter={isSelf ? "url(#vibeGlow)" : "none"}
-                />
-                <text x={sv.x} y={sv.y + 4.5} textAnchor="middle"
-                  fill="#0E0B08" fontSize={isSelf ? "11" : "9.5"}
-                  fontFamily="'Inter Tight', sans-serif" fontWeight="800"
-                >{name.charAt(0)}</text>
+                <circle cx={sv.x} cy={sv.y} r={isHov && !isSelf ? 14 : r}
+                  fill={color} fillOpacity={isSelf ? 1 : 0.78}
+                  filter={isSelf ? "url(#vibeGlow)" : "none"}/>
+                {emoji ? (
+                  <text x={sv.x} y={sv.y + (isSelf ? 6 : 5)} textAnchor="middle"
+                    fontSize={isSelf ? "14" : "11"}>{emoji}</text>
+                ) : (
+                  <text x={sv.x} y={sv.y + (isSelf ? 5.5 : 4.5)} textAnchor="middle"
+                    fill="#0E0B08" fontSize={isSelf ? "12" : "10"}
+                    fontFamily="'Inter Tight', sans-serif" fontWeight="800">{name.charAt(0)}</text>
+                )}
                 <text x={sv.x} y={sv.y + r + 14} textAnchor="middle"
                   fill={color} fillOpacity={isSelf ? 1 : 0.85}
                   fontSize={isSelf ? "11" : "10"}
-                  fontFamily="'Inter Tight', sans-serif" fontWeight="700"
-                >{name}</text>
+                  fontFamily="'Inter Tight', sans-serif" fontWeight="700">{name}</text>
               </g>
             );
           })}
 
-          {/* Tooltip on hover */}
           {hovered && (() => {
             const tx = Math.min(Math.max(hovered.x, 90), 510);
             const ty = hovered.y < 120 ? hovered.y + 42 : hovered.y - 54;
@@ -277,8 +421,7 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
             return (
               <g pointerEvents="none">
                 <rect x={tx - 90} y={ty - 18} width={180} height={38}
-                  rx={5} fill="rgba(14,11,8,0.93)"
-                  stroke="rgba(255,255,255,0.13)" strokeWidth="1"/>
+                  rx={5} fill="rgba(14,11,8,0.93)" stroke="rgba(255,255,255,0.13)" strokeWidth="1"/>
                 <text x={tx} y={ty - 2} textAnchor="middle"
                   fill="#F4EAD8" fontSize="11.5"
                   fontFamily="'Inter Tight', sans-serif" fontWeight="700">{hovered.name}</text>
@@ -291,57 +434,25 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
         </svg>
       </div>
 
-      {/* Your position card */}
-      {myPos && currentUser && (
-        <div style={{
-          marginTop: 16,
-          padding: "14px 18px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          borderRadius: 8,
-          display: "flex", alignItems: "center", gap: 14,
-        }}>
-          <window.Avatar name={currentUser} size={32}/>
-          <div>
-            <div style={{ color: "#F4EAD8", fontSize: 14, fontWeight: 700 }}>{currentUser}</div>
-            <div style={{ color: "rgba(244,234,216,0.5)", fontSize: 12, marginTop: 2 }}>
-              {pct(myPos.h)} House · {pct(myPos.b)} Bass · {pct(myPos.t)} Techno
-            </div>
+      {/* Squad profiles */}
+      {squadOrder.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            color: "rgba(244,234,216,0.35)", letterSpacing: "0.14em", marginBottom: 14,
+          }}>THE CREW</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+            {squadOrder.map(f => (
+              <ProfileCard
+                key={f.name}
+                name={f.name}
+                profile={profiles[f.name]}
+                vibePos={vibePositions[f.name]}
+                isSelf={f.name === currentUser}
+                onSave={patch => dispatch({ type: "setProfile", user: f.name, patch })}
+              />
+            ))}
           </div>
-          <button
-            onClick={() => dispatch({ type: "setVibePosition", user: currentUser, pos: null })}
-            style={{
-              marginLeft: "auto", background: "transparent", border: "none",
-              color: "rgba(244,234,216,0.3)", cursor: "pointer",
-              fontSize: 20, lineHeight: 1, padding: "2px 6px",
-            }}
-            title="Remove my position"
-          >×</button>
-        </div>
-      )}
-
-      {/* Who's on the map */}
-      {Object.keys(vibePositions).length > 0 && (
-        <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {Object.entries(vibePositions).map(([name, pos]) => {
-            const friend = (window.FRIENDS || []).find(f => f.name === name);
-            const color = friend?.color || "#F4EAD8";
-            return (
-              <div key={name} style={{
-                display: "flex", alignItems: "center", gap: 7,
-                padding: "5px 10px",
-                background: "rgba(255,255,255,0.03)",
-                border: `1px solid ${color}30`,
-                borderRadius: 20,
-              }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }}/>
-                <span style={{ color, fontSize: 12, fontWeight: 600 }}>{name}</span>
-                <span style={{ color: "rgba(244,234,216,0.35)", fontSize: 11 }}>
-                  {pct(pos.h)}H · {pct(pos.b)}B · {pct(pos.t)}T
-                </span>
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

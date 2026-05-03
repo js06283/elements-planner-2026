@@ -1048,7 +1048,7 @@ app.get("/api/app-state", async (_req, res) => {
 
 app.put("/api/app-state", async (req, res) => {
 	try {
-		const { fans, mustSeeByArtist, curiousByArtist, songsByArtist, commentsByArtist, vibePositions, extraFriends } = req.body;
+		const { fans, mustSeeByArtist, curiousByArtist, songsByArtist, commentsByArtist, vibePositions, extraFriends, profiles } = req.body;
 		const data = {
 			fans: fans || {},
 			mustSeeByArtist: mustSeeByArtist || {},
@@ -1057,6 +1057,7 @@ app.put("/api/app-state", async (req, res) => {
 			commentsByArtist: commentsByArtist || {},
 			vibePositions: vibePositions || {},
 			extraFriends: extraFriends || [],
+			profiles: profiles || {},
 		};
 		await pool.query(
 			`INSERT INTO app_state (key, data, updated_at)

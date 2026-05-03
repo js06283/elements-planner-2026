@@ -105,6 +105,10 @@ function appReducer(state, action) {
         },
       };
     }
+    case "setProfile": {
+      const prev = state.profiles || {};
+      return { ...state, profiles: { ...prev, [action.user]: { ...(prev[action.user] || {}), ...action.patch } } };
+    }
     case "addExtraFriend": {
       const already = (state.extraFriends || []).find(f => f.name === action.friend.name);
       if (already) return state;
@@ -128,7 +132,7 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, vibePositions: {}, extraFriends: [], currentUser: "" };
+  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, vibePositions: {}, extraFriends: [], profiles: {}, currentUser: "" };
 }
 
 const STORAGE_KEY = "elements26-songsfans-v2";
@@ -168,6 +172,7 @@ function App() {
         commentsByArtist: state.commentsByArtist,
         vibePositions: state.vibePositions,
         extraFriends: state.extraFriends,
+        profiles: state.profiles,
         currentUser: state.currentUser,
       }));
     } catch {}
@@ -185,15 +190,19 @@ function App() {
       || Object.keys(data.curiousByArtist || {}).length > 0
       || Object.keys(data.vibePositions || {}).length > 0;
     if (!hasData) return;
-    dispatch({ type: "loadFromStorage", payload: {
+    const payload = {
       fans: data.fans || {},
       mustSeeByArtist: data.mustSeeByArtist || {},
       curiousByArtist: data.curiousByArtist || {},
       songsByArtist: data.songsByArtist || {},
       commentsByArtist: data.commentsByArtist || {},
-      vibePositions: data.vibePositions || {},
-      extraFriends: data.extraFriends || [],
-    }});
+    };
+    // Only overwrite these if the server actually has them — prevents wiping
+    // local state when loading from a pre-feature server snapshot
+    if (data.vibePositions !== undefined) payload.vibePositions = data.vibePositions;
+    if (data.extraFriends !== undefined) payload.extraFriends = data.extraFriends;
+    if (data.profiles !== undefined) payload.profiles = data.profiles;
+    dispatch({ type: "loadFromStorage", payload });
   }
 
   // Load from server on mount (overrides localStorage with shared group state)
@@ -206,6 +215,7 @@ function App() {
 
   // Save to server debounced 800ms after any shared state change
   useEffectApp(() => {
+    lastSyncRef.current = Date.now(); // mark dirty immediately so the poll backs off
     const timer = setTimeout(() => {
       lastSyncRef.current = Date.now();
       fetch("/api/app-state", {
@@ -219,11 +229,17 @@ function App() {
           commentsByArtist: state.commentsByArtist,
           vibePositions: state.vibePositions,
           extraFriends: state.extraFriends,
+          profiles: state.profiles,
         }),
       }).catch(() => {});
     }, 800);
     return () => clearTimeout(timer);
-  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.extraFriends]);
+  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.extraFriends, state.profiles]);
+
+  // Force profile modal open until a user is chosen
+  useEffectApp(() => {
+    if (!currentUser) setProfileOpen(true);
+  }, [currentUser]);
 
   // Keep window.FRIENDS in sync with dynamically added people
   useEffectApp(() => {
@@ -398,10 +414,11 @@ function App() {
       <ProfileModal
         open={profileOpen}
         currentUser={currentUser}
+        required={!currentUser}
         extraFriends={state.extraFriends || []}
         onAddFriend={(f) => dispatch({ type: "addExtraFriend", friend: f })}
         onPick={(name) => { dispatch({ type: "setUser", user: name }); setProfileOpen(false); }}
-        onClose={() => setProfileOpen(false)}
+        onClose={() => { if (currentUser) setProfileOpen(false); }}
       />
 
       <window.Toast message={toast?.message} kind={toast?.kind} onClose={() => setToast(null)}/>
@@ -492,7 +509,7 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
 }
 
 // ---- Profile Modal ----------------------------------------------------------
-function ProfileModal({ open, currentUser, extraFriends, onAddFriend, onPick, onClose }) {
+function ProfileModal({ open, currentUser, required, extraFriends, onAddFriend, onPick, onClose }) {
   const [adding, setAdding] = useStateApp(false);
   const [newName, setNewName] = useStateApp("");
 
@@ -513,7 +530,7 @@ function ProfileModal({ open, currentUser, extraFriends, onAddFriend, onPick, on
   const allFriends = [...window.FRIENDS, ...(extraFriends || []).filter(f => !window.FRIENDS.find(x => x.name === f.name))];
 
   return (
-    <window.Modal open={open} onClose={() => { setAdding(false); setNewName(""); onClose(); }} maxWidth={460}>
+    <window.Modal open={open} onClose={() => { setAdding(false); setNewName(""); onClose(); }} maxWidth={460} required={required}>
       <div style={{ padding: "24px 24px 8px" }}>
         <div style={{
           fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
@@ -524,7 +541,7 @@ function ProfileModal({ open, currentUser, extraFriends, onAddFriend, onPick, on
           fontSize: 22, color: "#F4EAD8", margin: 0, letterSpacing: "-0.015em",
         }}>Pick your name</h2>
         <p style={{ marginTop: 6, color: "rgba(244, 234, 216, 0.5)", fontSize: 13 }}>
-          Your fans + songs are tied to this name across every tab.
+          {required ? "Choose your name to get started." : "Your fans + songs are tied to this name across every tab."}
         </p>
       </div>
       <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
