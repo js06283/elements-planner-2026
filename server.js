@@ -1048,13 +1048,15 @@ app.get("/api/app-state", async (_req, res) => {
 
 app.put("/api/app-state", async (req, res) => {
 	try {
-		const { fans, mustSeeByArtist, curiousByArtist, songsByArtist, commentsByArtist } = req.body;
+		const { fans, mustSeeByArtist, curiousByArtist, songsByArtist, commentsByArtist, vibePositions, extraFriends } = req.body;
 		const data = {
 			fans: fans || {},
 			mustSeeByArtist: mustSeeByArtist || {},
 			curiousByArtist: curiousByArtist || {},
 			songsByArtist: songsByArtist || {},
 			commentsByArtist: commentsByArtist || {},
+			vibePositions: vibePositions || {},
+			extraFriends: extraFriends || [],
 		};
 		await pool.query(
 			`INSERT INTO app_state (key, data, updated_at)
@@ -1080,6 +1082,8 @@ initDb()
 		});
 	})
 	.catch((error) => {
-		console.error("Database initialization failed:", error);
-		process.exit(1);
+		console.warn("Database unavailable — running without sync:", error.message);
+		app.listen(port, () => {
+			console.log(`Server listening on port ${port} (no DB)`);
+		});
 	});

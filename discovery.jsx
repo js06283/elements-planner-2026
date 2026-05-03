@@ -21,7 +21,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
       return true;
     });
     if (sort === "fans") {
-      const score = id => (state.fans[id]?.length || 0) + (state.mustSeeByArtist[id]?.length || 0) * 2;
+      const score = id => (state.fans[id]?.length || 0) + (state.mustSeeByArtist[id]?.length || 0) * 2 + (state.curiousByArtist[id]?.length || 0) * 0.5;
       out = [...out].sort((a, b) => score(b.id) - score(a.id));
     } else if (sort === "songs") {
       out = [...out].sort((a, b) => (state.songsByArtist[b.id]?.length || 0) - (state.songsByArtist[a.id]?.length || 0));

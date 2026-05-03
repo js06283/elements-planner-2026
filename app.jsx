@@ -105,6 +105,20 @@ function appReducer(state, action) {
         },
       };
     }
+    case "addExtraFriend": {
+      const already = (state.extraFriends || []).find(f => f.name === action.friend.name);
+      if (already) return state;
+      return { ...state, extraFriends: [...(state.extraFriends || []), action.friend] };
+    }
+    case "setVibePosition": {
+      const prev = state.vibePositions || {};
+      if (action.pos === null) {
+        const next = { ...prev };
+        delete next[action.user];
+        return { ...state, vibePositions: next };
+      }
+      return { ...state, vibePositions: { ...prev, [action.user]: action.pos } };
+    }
     case "loadFromStorage":
       return { ...state, ...action.payload };
     default:
@@ -114,7 +128,7 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, currentUser: "" };
+  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, vibePositions: {}, extraFriends: [], currentUser: "" };
 }
 
 const STORAGE_KEY = "elements26-songsfans-v2";
@@ -152,6 +166,8 @@ function App() {
         curiousByArtist: state.curiousByArtist,
         songsByArtist: state.songsByArtist,
         commentsByArtist: state.commentsByArtist,
+        vibePositions: state.vibePositions,
+        extraFriends: state.extraFriends,
         currentUser: state.currentUser,
       }));
     } catch {}
@@ -166,7 +182,8 @@ function App() {
       || Object.keys(data.songsByArtist || {}).length > 0
       || Object.keys(data.commentsByArtist || {}).length > 0
       || Object.keys(data.mustSeeByArtist || {}).length > 0
-      || Object.keys(data.curiousByArtist || {}).length > 0;
+      || Object.keys(data.curiousByArtist || {}).length > 0
+      || Object.keys(data.vibePositions || {}).length > 0;
     if (!hasData) return;
     dispatch({ type: "loadFromStorage", payload: {
       fans: data.fans || {},
@@ -174,6 +191,8 @@ function App() {
       curiousByArtist: data.curiousByArtist || {},
       songsByArtist: data.songsByArtist || {},
       commentsByArtist: data.commentsByArtist || {},
+      vibePositions: data.vibePositions || {},
+      extraFriends: data.extraFriends || [],
     }});
   }
 
@@ -198,11 +217,22 @@ function App() {
           curiousByArtist: state.curiousByArtist,
           songsByArtist: state.songsByArtist,
           commentsByArtist: state.commentsByArtist,
+          vibePositions: state.vibePositions,
+          extraFriends: state.extraFriends,
         }),
       }).catch(() => {});
     }, 800);
     return () => clearTimeout(timer);
-  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist]);
+  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.extraFriends]);
+
+  // Keep window.FRIENDS in sync with dynamically added people
+  useEffectApp(() => {
+    for (const f of state.extraFriends || []) {
+      if (!window.FRIENDS.find(x => x.name === f.name)) {
+        window.FRIENDS.push(f);
+      }
+    }
+  }, [state.extraFriends]);
 
   // Poll every 15s so changes from other devices appear without a refresh
   useEffectApp(() => {
@@ -302,6 +332,14 @@ function App() {
             onArtistClick={a => setActiveArtist(a)}
           />
         )}
+        {tab === "vibe" && (
+          <window.VibeView
+            state={state}
+            dispatch={dispatch}
+            currentUser={currentUser}
+            onPickProfile={() => setProfileOpen(true)}
+          />
+        )}
       </div>
 
       {/* Footer mini-info */}
@@ -360,6 +398,8 @@ function App() {
       <ProfileModal
         open={profileOpen}
         currentUser={currentUser}
+        extraFriends={state.extraFriends || []}
+        onAddFriend={(f) => dispatch({ type: "addExtraFriend", friend: f })}
         onPick={(name) => { dispatch({ type: "setUser", user: name }); setProfileOpen(false); }}
         onClose={() => setProfileOpen(false)}
       />
@@ -374,7 +414,8 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
   const tabs = [
     { id: "discovery", label: "Discovery" },
     { id: "songs",     label: "Songs" },
-    { id: "schedule",  label: "Schedule" },
+    { id: "schedule",  label: "Schedule", disabled: true },
+    { id: "vibe",      label: "Vibe" },
   ];
   return (
     <header style={{
@@ -404,15 +445,18 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
         {/* Tabs */}
         <nav style={{ display: "flex", gap: 4, flex: 1 }}>
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "8px 14px", borderRadius: 4, border: "none",
+            <button key={t.id} onClick={() => !t.disabled && setTab(t.id)} style={{
+              padding: "8px 14px", border: "none",
               background: tab === t.id ? "rgba(244, 234, 216, 0.08)" : "transparent",
-              color: tab === t.id ? "#F4EAD8" : "rgba(244, 234, 216, 0.55)",
+              color: t.disabled ? "rgba(244, 234, 216, 0.2)" : tab === t.id ? "#F4EAD8" : "rgba(244, 234, 216, 0.55)",
               fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
-              cursor: "pointer", letterSpacing: "0.01em",
+              cursor: t.disabled ? "default" : "pointer", letterSpacing: "0.01em",
               borderBottom: tab === t.id ? "1px solid #E8C77A" : "1px solid transparent",
               borderRadius: 0,
-            }}>{t.label}</button>
+            }}>
+              {t.label}
+              {t.disabled && <span style={{ fontSize: 10, marginLeft: 5, opacity: 0.6 }}>soon</span>}
+            </button>
           ))}
         </nav>
 
@@ -448,9 +492,28 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
 }
 
 // ---- Profile Modal ----------------------------------------------------------
-function ProfileModal({ open, currentUser, onPick, onClose }) {
+function ProfileModal({ open, currentUser, extraFriends, onAddFriend, onPick, onClose }) {
+  const [adding, setAdding] = useStateApp(false);
+  const [newName, setNewName] = useStateApp("");
+
+  function submitNew() {
+    const name = newName.trim();
+    if (!name) return;
+    // Generate a color from name hash
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    const PALETTE = ["#F06292","#AED581","#4FC3F7","#FFB74D","#CE93D8","#80DEEA","#F48FB1","#90CAF9","#A5D6A7","#FFCC80"];
+    const color = PALETTE[h % PALETTE.length];
+    onAddFriend({ name, color });
+    onPick(name);
+    setNewName("");
+    setAdding(false);
+  }
+
+  const allFriends = [...window.FRIENDS, ...(extraFriends || []).filter(f => !window.FRIENDS.find(x => x.name === f.name))];
+
   return (
-    <window.Modal open={open} onClose={onClose} maxWidth={460}>
+    <window.Modal open={open} onClose={() => { setAdding(false); setNewName(""); onClose(); }} maxWidth={460}>
       <div style={{ padding: "24px 24px 8px" }}>
         <div style={{
           fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
@@ -465,7 +528,7 @@ function ProfileModal({ open, currentUser, onPick, onClose }) {
         </p>
       </div>
       <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        {window.FRIENDS.map(f => (
+        {allFriends.map(f => (
           <button key={f.name} onClick={() => onPick(f.name)} style={{
             display: "flex", alignItems: "center", gap: 12,
             padding: "10px 12px", borderRadius: 4,
@@ -486,6 +549,52 @@ function ProfileModal({ open, currentUser, onPick, onClose }) {
             )}
           </button>
         ))}
+
+        {/* Add person row */}
+        {adding ? (
+          <div style={{
+            gridColumn: "1 / -1", display: "flex", gap: 6, alignItems: "center",
+            padding: "6px 4px",
+          }}>
+            <input
+              autoFocus
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") submitNew(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }}
+              placeholder="Enter name…"
+              style={{
+                flex: 1, background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.15)", borderRadius: 4,
+                color: "#F4EAD8", padding: "9px 12px",
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 14, fontWeight: 600,
+                outline: "none",
+              }}
+            />
+            <button onClick={submitNew} style={{
+              padding: "9px 14px", borderRadius: 4, border: "none",
+              background: "#E8C77A", color: "#0E0B08",
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 700,
+              cursor: "pointer",
+            }}>Add</button>
+            <button onClick={() => { setAdding(false); setNewName(""); }} style={{
+              padding: "9px 10px", borderRadius: 4, border: "none",
+              background: "transparent", color: "rgba(244,234,216,0.4)",
+              cursor: "pointer", fontSize: 18, lineHeight: 1,
+            }}>×</button>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} style={{
+            gridColumn: "1 / -1",
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 12px", borderRadius: 4,
+            background: "transparent",
+            border: "1px dashed rgba(255,255,255,0.12)",
+            color: "rgba(244,234,216,0.4)", cursor: "pointer",
+            fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+          }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Add person
+          </button>
+        )}
       </div>
     </window.Modal>
   );

@@ -14,6 +14,7 @@ const FRIENDS = [
   { name: "Steve",  color: "#E87F3F" },  // orange
   { name: "Sophie", color: "#A47BD4" },  // violet
   { name: "James",  color: "#4DC9B0" },  // mint
+  { name: "Ray",    color: "#E8A030" },  // golden orange
 ];
 
 // Stage colors (placeholder until set times drop — assigned by genre family)
