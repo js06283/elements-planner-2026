@@ -1072,6 +1072,135 @@ app.put("/api/app-state", async (req, res) => {
 	}
 });
 
+// One-time migration: remap index-based artist IDs → stable name-based slugs.
+// Call POST /api/migrate-artist-ids once, then this endpoint can be removed.
+app.post("/api/migrate-artist-ids", async (req, res) => {
+	try {
+		// Maps old art-N → new art-slug (using corrected artist names)
+		const ID_MAP = {
+			"art-0":  "art-above-beyond",
+			"art-1":  "art-atliens",
+			"art-2":  "art-big-gigantic",
+			"art-3":  "art-boys-noize",
+			"art-4":  "art-chris-lake",
+			"art-5":  "art-crankdat",
+			"art-6":  "art-excision",
+			"art-7":  "art-ganja-white-night",
+			"art-8":  "art-its-murph",
+			"art-9":  "art-jigitz",
+			"art-10": "art-kettama",
+			"art-11": "art-mersiv",
+			"art-12": "art-zingara",
+			"art-13": "art-dirtwire",       // was "Driftire"
+			"art-14": "art-dreya-v",
+			"art-15": "art-effin",
+			"art-16": "art-gorillat",
+			"art-17": "art-ivy-lab",
+			"art-18": "art-kaleena-zanders",
+			"art-19": "art-lumasi",
+			"art-20": "art-mcrt",
+			"art-21": "art-splintered-sunlight",
+			"art-22": "art-wonkywilla",
+			"art-23": "art-x-club",
+			"art-24": "art-ammo-amor",
+			"art-25": "art-bardz",
+			"art-26": "art-gavin-black",
+			"art-27": "art-jellybean",
+			"art-28": "art-kattana",
+			"art-29": "art-a-trak",
+			"art-30": "art-ayybo",
+			"art-31": "art-cloonee",
+			"art-32": "art-clozee",
+			"art-33": "art-hedex",
+			"art-34": "art-hol",
+			"art-35": "art-level-up",
+			"art-36": "art-louis-the-child",
+			"art-37": "art-matroda",
+			"art-38": "art-mph",
+			"art-39": "art-of-the-trees",
+			"art-40": "art-ray-volpe",
+			"art-41": "art-subtronics",
+			"art-42": "art-svdden-death",
+			"art-43": "art-westend",
+			"art-44": "art-biscuits",
+			"art-45": "art-disciple",
+			"art-46": "art-linska",
+			"art-47": "art-nikita-the-wicked",
+			"art-48": "art-opiou",           // was "Opio"
+			"art-49": "art-probcause",
+			"art-50": "art-roddy-lima",
+			"art-51": "art-sippy",
+			"art-52": "art-skysia",
+			"art-53": "art-9b49",            // was "98.49"
+			"art-54": "art-alec-b2b-ecamp",
+			"art-55": "art-earth-signs",
+			"art-56": "art-miel",
+			"art-57": "art-pafyon",
+			"art-58": "art-refrakt",
+			"art-59": "art-sirens",
+			"art-60": "art-acraze",
+			"art-61": "art-charlotte-de-witte",
+			"art-62": "art-daily-bread",
+			"art-63": "art-i-hate-models",
+			"art-64": "art-lsdream",
+			"art-65": "art-porter-robinson",
+			"art-66": "art-sub-focus",
+			"art-67": "art-tiga",
+			"art-68": "art-tractorbeam",
+			"art-69": "art-walker-royce",
+			"art-70": "art-ydg",
+			"art-71": "art-azzecca",         // was "Azecca"
+			"art-72": "art-chyl",
+			"art-73": "art-golden-pony",
+			"art-74": "art-jackie-hollander",
+			"art-75": "art-know-good",
+			"art-76": "art-marvel-years",
+			"art-77": "art-thought-process",
+			"art-78": "art-will-clarke",
+			"art-79": "art-barz",
+			"art-80": "art-dr-chunga",
+			"art-81": "art-koopmusik",
+			"art-82": "art-luna-mar",
+			"art-83": "art-pynth",
+		};
+
+		function remapKeys(obj) {
+			if (!obj || typeof obj !== "object") return obj;
+			const out = {};
+			for (const [k, v] of Object.entries(obj)) {
+				out[ID_MAP[k] || k] = v;
+			}
+			return out;
+		}
+
+		const result = await pool.query("SELECT data FROM app_state WHERE key = 'elements26'");
+		const old = result.rows[0]?.data || {};
+
+		const migrated = {
+			fans:              remapKeys(old.fans || {}),
+			mustSeeByArtist:   remapKeys(old.mustSeeByArtist || {}),
+			curiousByArtist:   remapKeys(old.curiousByArtist || {}),
+			songsByArtist:     remapKeys(old.songsByArtist || {}),
+			commentsByArtist:  remapKeys(old.commentsByArtist || {}),
+			vibePositions:     old.vibePositions || {},
+			extraFriends:      old.extraFriends || [],
+			profiles:          old.profiles || {},
+		};
+
+		await pool.query(
+			`INSERT INTO app_state (key, data, updated_at)
+			 VALUES ('elements26', $1::jsonb, NOW())
+			 ON CONFLICT (key)
+			 DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+			[JSON.stringify(migrated)]
+		);
+
+		res.json({ ok: true, mapped: Object.keys(ID_MAP).length });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+});
+
 app.get("*", (_req, res) => {
 	res.sendFile(path.join(__dirname, "index.html"));
 });
