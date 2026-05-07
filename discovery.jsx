@@ -5,6 +5,7 @@ const { useState: useStateD, useMemo: useMemoD } = React;
 
 function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser }) {
   const [day, setDay] = useStateD("All");
+  const [stage, setStage] = useStateD("All");
   const [genre, setGenre] = useStateD("All");
   const [sort, setSort] = useStateD("fans"); // lineup | fans | songs
 
@@ -17,6 +18,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
   const filtered = useMemoD(() => {
     let out = window.ARTISTS.filter(a => {
       if (day !== "All" && a.day !== day) return false;
+      if (stage !== "All" && a.stage !== stage) return false;
       if (genre !== "All" && a.genre !== genre) return false;
       return true;
     });
@@ -27,7 +29,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
       out = [...out].sort((a, b) => (state.songsByArtist[b.id]?.length || 0) - (state.songsByArtist[a.id]?.length || 0));
     }
     return out;
-  }, [day, genre, sort, state]);
+  }, [day, stage, genre, sort, state]);
 
   return (
     <div>
@@ -38,6 +40,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
         marginBottom: 28,
       }}>
         <FilterPills label="Day" value={day} onChange={setDay} options={days}/>
+        <StagePills value={stage} onChange={setStage}/>
         <FilterDropdown label="Genre" value={genre} onChange={setGenre} options={genres}/>
         <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
           <span style={{
@@ -117,6 +120,44 @@ function FilterPills({ label, value, onChange, options }) {
             cursor: "pointer", transition: "all 0.15s",
           }}>{o.l}</button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function StagePills({ value, onChange }) {
+  const stages = [
+    { v: "All",   l: "All Stages" },
+    { v: "fire",  l: "🔥 Fire" },
+    { v: "earth", l: "🌍 Earth" },
+    { v: "water", l: "💧 Water" },
+    { v: "air",   l: "💨 Air" },
+  ];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+        color: "rgba(244, 234, 216, 0.4)", letterSpacing: "0.14em",
+      }}>STAGE</span>
+      <div style={{
+        display: "inline-flex", padding: 3, gap: 2,
+        background: "rgba(255,255,255,0.04)", borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}>
+        {stages.map(s => {
+          const tint = s.v !== "All" ? window.STAGE_TINTS[s.v] : null;
+          const active = value === s.v;
+          return (
+            <button key={s.v} onClick={() => onChange(s.v)} style={{
+              padding: "6px 14px", borderRadius: 999, border: "none",
+              background: active ? (tint ? tint.bg : "#F4EAD8") : "transparent",
+              color: active ? (tint ? tint.fg : "#0E0B08") : "rgba(244, 234, 216, 0.65)",
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 600,
+              cursor: "pointer", transition: "all 0.15s",
+              boxShadow: active && tint ? `inset 0 0 0 1px ${tint.fg}40` : "none",
+            }}>{s.l}</button>
+          );
+        })}
       </div>
     </div>
   );
