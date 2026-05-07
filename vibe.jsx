@@ -419,9 +419,11 @@ function ProfileCard({ name, profile, vibePos, isSelf, onSave, onPhotoClick }) {
 }
 
 // ---- Main view -------------------------------------------------------------
-function VibeView({ state, dispatch, currentUser, onPickProfile }) {
+function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos }) {
   const [hovered, setHovered] = useVibeState(null);
   const [lightbox, setLightbox] = useVibeState(null); // { src, name }
+  const [pendingPos, setPendingPos] = useVibeState(null); // unsaved click position
+  const [saved, setSaved] = useVibeState(false); // flash "Saved!" feedback
   const svgRef = useVibeRef(null);
 
   const vibePositions = state.vibePositions || {};
@@ -443,7 +445,17 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
     if (!pt) return;
     const bary = svgToBary(pt.x, pt.y);
     if (!bary) return;
-    dispatch({ type: 'setVibePosition', user: currentUser, pos: bary });
+    setPendingPos(bary);
+    setSaved(false);
+  }
+
+  function handleSave() {
+    if (!pendingPos) return;
+    dispatch({ type: 'setVibePosition', user: currentUser, pos: pendingPos });
+    onSaveVibePos(pendingPos);
+    setPendingPos(null);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   }
 
   function handleMouseMove(e) {
@@ -479,7 +491,11 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
         }}>Vibe Map</h2>
         {currentUser ? (
           <p style={{ color: 'rgba(244,234,216,0.45)', fontSize: 13, margin: 0 }}>
-            Click inside the triangle to place yourself.
+            {pendingPos
+              ? 'Position selected — hit Save to lock it in.'
+              : vibePositions[currentUser]
+                ? 'Click to reposition yourself, then Save.'
+                : 'Click inside the triangle to place yourself, then Save.'}
           </p>
         ) : (
           <button onClick={onPickProfile} style={{
@@ -641,7 +657,45 @@ function VibeView({ state, dispatch, currentUser, onPickProfile }) {
               </g>
             );
           })()}
+          {/* Pending (unsaved) position ghost */}
+          {pendingPos && (() => {
+            const sv = baryToSvg(pendingPos.h, pendingPos.b, pendingPos.t);
+            const friend = window.FRIENDS.find(f => f.name === currentUser) || {};
+            const color = friend.color || '#F4EAD8';
+            return (
+              <g pointerEvents="none">
+                <circle cx={sv.x} cy={sv.y} r={22} fill={color} fillOpacity="0.1" stroke={color} strokeOpacity="0.35" strokeWidth="1.5" strokeDasharray="4 3"/>
+                <circle cx={sv.x} cy={sv.y} r={16} fill={color} fillOpacity="0.5"/>
+                <text x={sv.x} y={sv.y + 5.5} textAnchor="middle"
+                  fill="#0E0B08" fontSize="12"
+                  fontFamily="'Inter Tight', sans-serif" fontWeight="800">{currentUser.charAt(0)}</text>
+              </g>
+            );
+          })()}
         </svg>
+
+        {/* Save button — only shown while a pending position exists */}
+        {pendingPos && (
+          <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={handleSave} style={{
+              padding: '9px 22px', borderRadius: 6, border: 'none',
+              background: '#E8C77A', color: '#0E0B08',
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 700,
+              cursor: 'pointer',
+            }}>Save position</button>
+            <button onClick={() => setPendingPos(null)} style={{
+              padding: '9px 16px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)',
+              background: 'transparent', color: 'rgba(244,234,216,0.5)',
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+              cursor: 'pointer',
+            }}>Cancel</button>
+          </div>
+        )}
+        {saved && !pendingPos && (
+          <div style={{ padding: '10px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', color: '#A6D49F', fontSize: 13, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>
+            ✓ Position saved
+          </div>
+        )}
       </div>
 
       {/* Squad */}

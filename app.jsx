@@ -250,6 +250,26 @@ function App() {
     return () => clearTimeout(timer);
   }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.extraFriends, state.profiles]);
 
+  // Immediate save helper — call with any extra fields to merge before PUT
+  function saveStateNow(extra = {}) {
+    lastSyncRef.current = Date.now();
+    fetch("/api/app-state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fans: state.fans,
+        mustSeeByArtist: state.mustSeeByArtist,
+        curiousByArtist: state.curiousByArtist,
+        songsByArtist: state.songsByArtist,
+        commentsByArtist: state.commentsByArtist,
+        vibePositions: state.vibePositions,
+        extraFriends: state.extraFriends,
+        profiles: state.profiles,
+        ...extra,
+      }),
+    }).catch(() => {});
+  }
+
   // Save profiles immediately to DB whenever they change (no debounce — photos/bio must not get lost)
   const profilesRef = useRefApp(state.profiles);
   useEffectApp(() => {
@@ -391,6 +411,9 @@ function App() {
             dispatch={dispatch}
             currentUser={currentUser}
             onPickProfile={() => setProfileOpen(true)}
+            onSaveVibePos={(pos) => saveStateNow({
+              vibePositions: { ...state.vibePositions, [currentUser]: pos },
+            })}
           />
         )}
       </div>
