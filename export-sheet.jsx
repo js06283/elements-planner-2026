@@ -36,11 +36,25 @@ function ExportSheet({ open, onClose, request, state, onToast, onRetryExport }) 
       filtered = all.filter(t => t.day === request.day);
       title = `${request.day} Mixtape`;
       subtitle = `Every song attached to a ${request.day} artist`;
+    } else if (request.kind === "vibe") {
+      const rankedIds = request.vibeRankedArtistIds || [];
+      const byArtist = {};
+      for (const s of all) {
+        if (!byArtist[s.artistId]) byArtist[s.artistId] = [];
+        byArtist[s.artistId].push(s);
+      }
+      filtered = rankedIds.flatMap(id =>
+        (byArtist[id] || []).sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0))
+      );
+      title = `${request.person}'s Vibe Playlist`;
+      subtitle = `Curated by vibe match · Elements 2026`;
     } else {
       title = "Elements 2026 — The Group Mixtape";
       subtitle = "Every song everyone added";
     }
-    filtered = [...filtered].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0));
+    if (request.kind !== "vibe") {
+      filtered = [...filtered].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0));
+    }
     return { tracks: filtered, title, subtitle, coverTracks: filtered.slice(0, 4) };
   }, [request, state]);
 

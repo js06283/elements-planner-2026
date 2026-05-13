@@ -2,6 +2,37 @@
 
 const { useState: useVibeState, useRef: useVibeRef, useEffect: useVibeEffect } = React;
 
+function defaultVibeForGenre(genre) {
+  const g = (genre || "").toLowerCase();
+  if (g.includes("dubstep") || g.includes("riddim")) return { h: 0.06, b: 0.84, t: 0.10 };
+  if (g.includes("drum") || g.includes("dnb"))        return { h: 0.08, b: 0.62, t: 0.30 };
+  if (g.includes("trap"))                              return { h: 0.15, b: 0.72, t: 0.13 };
+  if (g.includes("future bass"))                       return { h: 0.42, b: 0.48, t: 0.10 };
+  if (g.includes("world bass") || g.includes("experimental bass") || g.includes("melodic bass"))
+                                                       return { h: 0.16, b: 0.68, t: 0.16 };
+  if (g.includes("bass"))                              return { h: 0.14, b: 0.72, t: 0.14 };
+  if (g.includes("hard techno"))                       return { h: 0.06, b: 0.10, t: 0.84 };
+  if (g.includes("melodic techno"))                    return { h: 0.22, b: 0.08, t: 0.70 };
+  if (g.includes("techno") || g.includes("psy"))       return { h: 0.10, b: 0.08, t: 0.82 };
+  if (g.includes("trance"))                            return { h: 0.12, b: 0.10, t: 0.78 };
+  if (g.includes("tech house"))                        return { h: 0.46, b: 0.06, t: 0.48 };
+  if (g.includes("deep house"))                        return { h: 0.74, b: 0.16, t: 0.10 };
+  if (g.includes("electro house") || g.includes("electro")) return { h: 0.58, b: 0.20, t: 0.22 };
+  if (g.includes("house"))                             return { h: 0.76, b: 0.14, t: 0.10 };
+  if (g.includes("hip-hop") || g.includes("hip hop")) return { h: 0.20, b: 0.65, t: 0.15 };
+  if (g.includes("electronic") || g.includes("funk")) return { h: 0.44, b: 0.38, t: 0.18 };
+  if (g.includes("jam"))                               return { h: 0.50, b: 0.30, t: 0.20 };
+  return { h: 0.33, b: 0.33, t: 0.34 };
+}
+
+function vibeDistance(a, b) {
+  return Math.sqrt(
+    Math.pow(a.h - b.h, 2) +
+    Math.pow(a.b - b.b, 2) +
+    Math.pow(a.t - b.t, 2)
+  );
+}
+
 const VTX = {
   H: { x: 300, y: 44  },
   B: { x: 52,  y: 502 },
@@ -418,8 +449,181 @@ function ProfileCard({ name, profile, vibePos, isSelf, onSave, onPhotoClick }) {
   );
 }
 
+// ---- Personalized playlist -------------------------------------------------
+function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions, songsByArtist, onExport }) {
+  const userVibe = vibePositions[currentUser];
+  if (!userVibe) return null;
+
+  const avp = artistVibePositions || {};
+
+  // Dot product measures genre alignment (not just proximity).
+  // A center user (0.33/0.33/0.33) gets equal scores for all corners → even mix.
+  // A 0.8 House user gets high scores for House artists, low for Bass/Techno.
+  function dotScore(pos) {
+    return userVibe.h * pos.h + userVibe.b * pos.b + userVibe.t * pos.t;
+  }
+
+  function dominantColor(pos) {
+    if (pos.h >= pos.b && pos.h >= pos.t) return '#E8C77A';
+    if (pos.b >= pos.t) return '#E8553F';
+    return '#7FB7E8';
+  }
+
+  // Bucket artists with songs by their dominant genre axis
+  const buckets = { H: [], B: [], T: [] };
+  for (const artist of window.ARTISTS) {
+    const songs = songsByArtist[artist.id] || [];
+    if (songs.length === 0) continue;
+    const pos = avp[artist.id] || defaultVibeForGenre(artist.genre);
+    const score = dotScore(pos);
+    const entry = { artist, pos, score, songs };
+    if (pos.h >= pos.b && pos.h >= pos.t) buckets.H.push(entry);
+    else if (pos.b >= pos.t) buckets.B.push(entry);
+    else buckets.T.push(entry);
+  }
+  // Within each bucket, best dot-product match first
+  for (const k of ['H', 'B', 'T']) buckets[k].sort((a, b) => b.score - a.score);
+
+  // Weighted round-robin: pull from each genre bucket proportional to user's vibe weights.
+  // This guarantees a center user gets an even genre mix, a 70% House user gets mostly House, etc.
+  const weights = [userVibe.h, userVibe.b, userVibe.t];
+  const keys = ['H', 'B', 'T'];
+  const taken = [0, 0, 0];
+  const artistOrder = [];
+  let total = 0;
+
+  while (keys.some((k, i) => taken[i] < buckets[k].length)) {
+    let bestIdx = -1, bestOwed = -Infinity;
+    for (let i = 0; i < 3; i++) {
+      if (taken[i] >= buckets[keys[i]].length) continue;
+      const owed = weights[i] * (total + 1) - taken[i];
+      if (owed > bestOwed) { bestOwed = owed; bestIdx = i; }
+    }
+    if (bestIdx === -1) break;
+    artistOrder.push(buckets[keys[bestIdx]][taken[bestIdx]]);
+    taken[bestIdx]++;
+    total++;
+  }
+
+  const vibeRankedArtistIds = artistOrder.map(e => e.artist.id);
+  const forYouSongs = artistOrder.flatMap(({ songs: s }) =>
+    [...s].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0))
+  );
+
+  return (
+    <div style={{ marginTop: 40, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 40 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
+        <div>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            color: 'rgba(244,234,216,0.35)', letterSpacing: '0.14em', marginBottom: 6,
+          }}>YOUR VIBE PLAYLIST</div>
+          <h3 style={{
+            fontFamily: "'Bricolage Grotesque', serif", fontWeight: 700,
+            fontSize: 22, color: '#F4EAD8', margin: '0 0 6px', letterSpacing: '-0.015em',
+          }}>For {currentUser}</h3>
+          <p style={{ margin: 0, color: 'rgba(244,234,216,0.4)', fontSize: 13, display: 'flex', gap: 10 }}>
+            <span style={{ color: '#E8C77A' }}>{pct(userVibe.h)} House</span>
+            <span style={{ opacity: 0.3 }}>·</span>
+            <span style={{ color: '#E8553F' }}>{pct(userVibe.b)} Bass</span>
+            <span style={{ opacity: 0.3 }}>·</span>
+            <span style={{ color: '#7FB7E8' }}>{pct(userVibe.t)} Techno</span>
+          </p>
+        </div>
+        {forYouSongs.length > 0 && (
+          <button
+            onClick={() => onExport({ kind: 'vibe', person: currentUser, vibeRankedArtistIds })}
+            style={{
+              padding: '9px 16px', borderRadius: 6,
+              background: 'rgba(29,185,84,0.1)', border: '1px solid rgba(29,185,84,0.4)',
+              color: '#1DB954', cursor: 'pointer', flexShrink: 0,
+              fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+            <window.SpotifyGlyph size={14}/>
+            Export ({forYouSongs.length})
+          </button>
+        )}
+      </div>
+
+      {/* Artist chips in interleaved genre order */}
+      {artistOrder.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+            color: 'rgba(244,234,216,0.3)', letterSpacing: '0.12em', marginBottom: 10,
+          }}>MATCHED ARTISTS · MIXED BY VIBE</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {artistOrder.slice(0, 15).map(({ artist, pos, songs: s }) => {
+              const dc = dominantColor(pos);
+              return (
+                <div key={artist.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '5px 10px 5px 9px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.04)', border: `1px solid ${dc}35`,
+                }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: dc, flexShrink: 0, opacity: 0.85,
+                  }}/>
+                  <span style={{
+                    fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 600,
+                    color: '#F4EAD8',
+                  }}>{artist.artist}</span>
+                  {s.length > 0 && (
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: '#1DB954',
+                    }}>{s.length}♪</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Songs */}
+      {forYouSongs.length === 0 ? (
+        <div style={{
+          padding: '28px 24px', textAlign: 'center',
+          border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 8,
+          color: 'rgba(244,234,216,0.3)', fontFamily: "'Inter Tight', sans-serif", fontSize: 13,
+        }}>
+          None of your matched artists have songs added yet.
+          <br/>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.08em',
+          }}>Head to Discovery and add songs.</span>
+        </div>
+      ) : (
+        <>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+            color: 'rgba(244,234,216,0.3)', letterSpacing: '0.12em', marginBottom: 10,
+          }}>SONGS · GENRE-MIXED BY YOUR VIBE</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {forYouSongs.slice(0, 30).map((s, i) => (
+              <window.SongRow key={s.id || i} song={s} currentUser={currentUser} showArtist={true}/>
+            ))}
+          </div>
+          {forYouSongs.length > 30 && (
+            <div style={{
+              padding: '14px 10px', textAlign: 'center',
+              color: 'rgba(244,234,216,0.3)', fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, letterSpacing: '0.1em',
+            }}>
+              + {forYouSongs.length - 30} MORE TRACKS IN THE EXPORT
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---- Main view -------------------------------------------------------------
-function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos }) {
+function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos, onExport }) {
   const [hovered, setHovered] = useVibeState(null);
   const [lightbox, setLightbox] = useVibeState(null); // { src, name }
   const [pendingPos, setPendingPos] = useVibeState(null); // unsaved click position
@@ -720,8 +924,19 @@ function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos }
           </div>
         </div>
       )}
+
+      {/* Personalized playlist */}
+      {onExport && (
+        <PersonalizedPlaylist
+          currentUser={currentUser}
+          vibePositions={vibePositions}
+          artistVibePositions={state.artistVibePositions}
+          songsByArtist={state.songsByArtist}
+          onExport={onExport}
+        />
+      )}
     </div>
   );
 }
 
-window.VibeView = VibeView;
+Object.assign(window, { VibeView, defaultVibeForGenre, vibeDistance, baryToSvg, svgToBary, VTX });

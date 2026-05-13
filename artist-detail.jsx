@@ -2,7 +2,7 @@
 
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA, useRef: useRefA } = React;
 
-function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose, onAddSong, onExport }) {
+function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose, onAddSong, onExport, onSaveArtistVibePos }) {
   if (!artist) return null;
   const fans = state.fans[artist.id] || [];
   const mustSee = (state.mustSeeByArtist || {})[artist.id] || [];
@@ -178,6 +178,18 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
             </div>
           )}
         </div>
+
+        {/* Vibe Triangle */}
+        {window.baryToSvg && (
+          <ArtistVibeTriangle
+            artist={artist}
+            savedPos={(state.artistVibePositions || {})[artist.id]}
+            onSave={pos => {
+              dispatch({ type: "setArtistVibePosition", artistId: artist.id, pos });
+              if (onSaveArtistVibePos) onSaveArtistVibePos(artist.id, pos);
+            }}
+          />
+        )}
 
         {/* Comments */}
         <CommentsSection
@@ -398,6 +410,135 @@ function SongRow({ song, currentUser, onHeart, onRemove, showArtist = false }) {
         }}>×</button>
       )}
       {!onRemove && <div/>}
+    </div>
+  );
+}
+
+// — Artist Vibe Triangle —————————————————————————
+function ArtistVibeTriangle({ artist, savedPos, onSave }) {
+  const [pendingPos, setPendingPos] = useStateA(null);
+  const svgRef = useRefA(null);
+
+  const displayPos = pendingPos || savedPos || window.defaultVibeForGenre(artist.genre);
+  const isDefault = !savedPos && !pendingPos;
+  const sv = window.baryToSvg(displayPos.h, displayPos.b, displayPos.t);
+  const VTX = window.VTX;
+  const triPts = `${VTX.H.x},${VTX.H.y} ${VTX.B.x},${VTX.B.y} ${VTX.T.x},${VTX.T.y}`;
+
+  function getSvgPoint(e) {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (600 / rect.width),
+      y: (e.clientY - rect.top) * (560 / rect.height),
+    };
+  }
+
+  function handleClick(e) {
+    const pt = getSvgPoint(e);
+    if (!pt) return;
+    const bary = window.svgToBary(pt.x, pt.y);
+    if (!bary) return;
+    setPendingPos(bary);
+  }
+
+  return (
+    <div style={{ padding: "20px 28px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12,
+      }}>
+        <h3 style={{
+          fontFamily: "'Bricolage Grotesque', serif", fontWeight: 600,
+          fontSize: 18, color: "#F4EAD8", margin: 0, letterSpacing: "-0.01em",
+        }}>Vibe Position</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {isDefault && (
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+              color: "rgba(244,234,216,0.35)", letterSpacing: "0.10em",
+            }}>GENRE DEFAULT</span>
+          )}
+          {pendingPos && (
+            <>
+              <button onClick={() => { onSave(pendingPos); setPendingPos(null); }} style={{
+                padding: "5px 14px", borderRadius: 5, border: "none",
+                background: "#E8C77A", color: "#0E0B08",
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 700,
+                cursor: "pointer",
+              }}>Save</button>
+              <button onClick={() => setPendingPos(null)} style={{
+                padding: "5px 10px", borderRadius: 5,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "transparent", color: "rgba(244,234,216,0.5)",
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 12, cursor: "pointer",
+              }}>Cancel</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={{
+        border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, overflow: "hidden",
+        background: "rgba(255,255,255,0.015)",
+      }}>
+        <svg ref={svgRef} viewBox="0 0 600 560"
+          style={{ width: "100%", display: "block", cursor: "crosshair", maxHeight: 200 }}
+          onClick={handleClick}
+        >
+          <polygon points={triPts} fill="none" stroke="rgba(244,234,216,0.10)" strokeWidth="1.5"/>
+
+          <text x={VTX.H.x} y={VTX.H.y - 14} textAnchor="middle" fill="#E8C77A" fontSize="20"
+            fontFamily="'Bricolage Grotesque', serif" fontWeight="700" letterSpacing="0.08em">HOUSE</text>
+          <text x={VTX.B.x} y={VTX.B.y + 32} textAnchor="middle" fill="#E8553F" fontSize="20"
+            fontFamily="'Bricolage Grotesque', serif" fontWeight="700" letterSpacing="0.08em">BASS</text>
+          <text x={VTX.T.x} y={VTX.T.y + 32} textAnchor="middle" fill="#7FB7E8" fontSize="20"
+            fontFamily="'Bricolage Grotesque', serif" fontWeight="700" letterSpacing="0.08em">TECHNO</text>
+
+          <circle cx={VTX.H.x} cy={VTX.H.y} r="4" fill="#E8C77A" opacity="0.5"/>
+          <circle cx={VTX.B.x} cy={VTX.B.y} r="4" fill="#E8553F" opacity="0.5"/>
+          <circle cx={VTX.T.x} cy={VTX.T.y} r="4" fill="#7FB7E8" opacity="0.5"/>
+
+          {/* Artist dot */}
+          <circle cx={sv.x} cy={sv.y} r={17}
+            fill={pendingPos ? "rgba(232,199,122,0.45)" : "#E8C77A"}
+            stroke="#E8C77A" strokeWidth={pendingPos ? 2 : 0}
+            opacity={0.9}/>
+          <text x={sv.x} y={sv.y + 5} textAnchor="middle"
+            fill="#0E0B08" fontSize="11"
+            fontFamily="'Inter Tight', sans-serif" fontWeight="800">
+            {artist.artist.replace(/[^A-Z0-9]/gi, "").slice(0, 3).toUpperCase()}
+          </text>
+        </svg>
+
+        <div style={{
+          padding: "8px 16px", borderTop: "1px solid rgba(255,255,255,0.05)",
+          display: "flex", gap: 20, justifyContent: "center",
+        }}>
+          {[
+            { label: "House", val: displayPos.h, color: "#E8C77A" },
+            { label: "Bass",  val: displayPos.b, color: "#E8553F" },
+            { label: "Techno", val: displayPos.t, color: "#7FB7E8" },
+          ].map(({ label, val, color }) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 11,
+                color: "rgba(244,234,216,0.4)",
+              }}>{label}</span>
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600,
+                color,
+              }}>{Math.round(val * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{
+        marginTop: 6, fontFamily: "'Inter Tight', sans-serif", fontSize: 11,
+        color: "rgba(244,234,216,0.25)", textAlign: "center",
+      }}>
+        Click to reposition · anyone can adjust
+      </div>
     </div>
   );
 }

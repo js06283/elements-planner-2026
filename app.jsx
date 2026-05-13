@@ -123,6 +123,10 @@ function appReducer(state, action) {
       }
       return { ...state, vibePositions: { ...prev, [action.user]: action.pos } };
     }
+    case "setArtistVibePosition": {
+      const prev = state.artistVibePositions || {};
+      return { ...state, artistVibePositions: { ...prev, [action.artistId]: action.pos } };
+    }
     case "loadFromStorage": {
       const next = { ...state, ...action.payload };
       // Merge profiles per-user: server wins for users it knows about,
@@ -145,7 +149,7 @@ function appReducer(state, action) {
 
 // ---- Seed (so the prototype feels alive on first load) ---------------------
 function seedState() {
-  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, vibePositions: {}, extraFriends: [], profiles: {}, currentUser: "" };
+  return { fans: {}, mustSeeByArtist: {}, curiousByArtist: {}, songsByArtist: {}, commentsByArtist: {}, vibePositions: {}, artistVibePositions: {}, extraFriends: [], profiles: {}, currentUser: "" };
 }
 
 const STORAGE_KEY = "elements26-songsfans-v2";
@@ -184,6 +188,7 @@ function App() {
         songsByArtist: state.songsByArtist,
         commentsByArtist: state.commentsByArtist,
         vibePositions: state.vibePositions,
+        artistVibePositions: state.artistVibePositions,
         extraFriends: state.extraFriends,
         profiles: state.profiles,
         currentUser: state.currentUser,
@@ -214,6 +219,7 @@ function App() {
     // Only overwrite these if the server actually has them — prevents wiping
     // local state when loading from a pre-feature server snapshot
     if (data.vibePositions !== undefined) payload.vibePositions = data.vibePositions;
+    if (data.artistVibePositions !== undefined) payload.artistVibePositions = data.artistVibePositions;
     if (data.extraFriends !== undefined) payload.extraFriends = data.extraFriends;
     if (data.profiles !== undefined) payload.profiles = data.profiles;
     dispatch({ type: "loadFromStorage", payload });
@@ -242,13 +248,14 @@ function App() {
           songsByArtist: state.songsByArtist,
           commentsByArtist: state.commentsByArtist,
           vibePositions: state.vibePositions,
+          artistVibePositions: state.artistVibePositions,
           extraFriends: state.extraFriends,
           profiles: state.profiles,
         }),
       }).catch(() => {});
     }, 800);
     return () => clearTimeout(timer);
-  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.extraFriends, state.profiles]);
+  }, [state.fans, state.mustSeeByArtist, state.curiousByArtist, state.songsByArtist, state.commentsByArtist, state.vibePositions, state.artistVibePositions, state.extraFriends, state.profiles]);
 
   // Immediate save helper — call with any extra fields to merge before PUT
   function saveStateNow(extra = {}) {
@@ -263,6 +270,7 @@ function App() {
         songsByArtist: state.songsByArtist,
         commentsByArtist: state.commentsByArtist,
         vibePositions: state.vibePositions,
+        artistVibePositions: state.artistVibePositions,
         extraFriends: state.extraFriends,
         profiles: state.profiles,
         ...extra,
@@ -287,6 +295,7 @@ function App() {
         songsByArtist: state.songsByArtist,
         commentsByArtist: state.commentsByArtist,
         vibePositions: state.vibePositions,
+        artistVibePositions: state.artistVibePositions,
         extraFriends: state.extraFriends,
         profiles: state.profiles,
       }),
@@ -414,6 +423,7 @@ function App() {
             onSaveVibePos={(pos) => saveStateNow({
               vibePositions: { ...state.vibePositions, [currentUser]: pos },
             })}
+            onExport={req => setExportRequest(req)}
           />
         )}
       </div>
@@ -442,6 +452,9 @@ function App() {
         onClose={() => setActiveArtist(null)}
         onAddSong={() => setAddSongFor(activeArtist)}
         onExport={req => setExportRequest(req)}
+        onSaveArtistVibePos={(artistId, pos) => saveStateNow({
+          artistVibePositions: { ...state.artistVibePositions, [artistId]: pos },
+        })}
       />
 
       <window.AddSongModal
