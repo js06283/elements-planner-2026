@@ -504,7 +504,7 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
   const tabs = [
     { id: "discovery", label: "Discovery" },
     { id: "songs",     label: "Songs" },
-    { id: "schedule",  label: "Schedule", disabled: true },
+    { id: "schedule",  label: "Schedule" },
     { id: "vibe",      label: "Profiles" },
   ];
   return (
