@@ -259,7 +259,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
                   color: "rgba(244, 234, 216, 0.45)",
                   transform: "translateY(-50%)",
-                }}>{minToHHMM(m)}</div>
+                }}>{window.fmtClock(minToHHMM(m))}</div>
               );
             })}
           </div>
@@ -296,7 +296,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
                       fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
                       color: "rgba(244, 234, 216, 0.55)", letterSpacing: "0.06em",
                     }}>
-                      <span>{a.timeStart}</span>
+                      <span>{window.fmtClock(a.timeStart)}</span>
                       {isFan && (
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="#E8553F">
                           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>

@@ -38,7 +38,7 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
               color: "#F4EAD8", letterSpacing: "0.12em",
               border: "1px solid rgba(255,255,255,0.1)",
-            }}>{artist.day.toUpperCase()} · {artist.timeStart}</span>
+            }}>{artist.day.toUpperCase()} · {window.fmtClock(artist.timeStart)}–{window.fmtClock(artist.timeEnd)}</span>
             <window.StageTag stage={artist.stage}/>
             <span style={{
               padding: "4px 10px", background: "rgba(14,11,8,0.85)",

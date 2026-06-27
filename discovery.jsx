@@ -296,7 +296,7 @@ function ArtistCard({ artist, fans, mustSee, curious, songs, comments, currentUs
           }}>
             <span>{artist.genre.toUpperCase()}</span>
             <span style={{ color: "rgba(244, 234, 216, 0.2)" }}>·</span>
-            <span>{artist.timeStart}</span>
+            <span>{window.fmtClock(artist.timeStart)}</span>
           </div>
           <h3 style={{
             fontFamily: "'Bricolage Grotesque', serif", fontWeight: 700,

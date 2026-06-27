@@ -2,6 +2,9 @@
 
 const { useState: useStateE, useMemo: useMemoE, useEffect: useEffectE } = React;
 
+// The vibe "suggest playlist" recommends only the top N songs, not the entire catalog.
+const VIBE_PLAYLIST_LIMIT = 20;
+
 function ExportSheet({ open, onClose, request, state, onToast, onRetryExport }) {
   // request: { kind: "artist"|"genre"|"person"|"all"|"day", artistId?, genre?, person?, day? }
   const [exporting, setExporting] = useStateE(false);
@@ -45,9 +48,9 @@ function ExportSheet({ open, onClose, request, state, onToast, onRetryExport }) 
       }
       filtered = rankedIds.flatMap(id =>
         (byArtist[id] || []).sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0))
-      );
+      ).slice(0, VIBE_PLAYLIST_LIMIT); // recommend only the top picks, not every song
       title = `${request.person}'s Vibe Playlist`;
-      subtitle = `Curated by vibe match · Elements 2026`;
+      subtitle = `Top ${VIBE_PLAYLIST_LIMIT} by vibe match · Elements 2026`;
     } else {
       title = "Elements 2026 — The Group Mixtape";
       subtitle = "Every song everyone added";
