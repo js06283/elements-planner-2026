@@ -8,6 +8,11 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Behind Railway/Vercel's HTTPS-terminating proxy, trust X-Forwarded-* so
+// req.protocol reflects the real "https". Otherwise the Spotify redirect_uri
+// is built as http:// and Spotify rejects it as "redirect_uri: Unsafe".
+app.set("trust proxy", true);
+
 const pool = new Pool({
 	connectionString: process.env.DATABASE_URL,
 	ssl:
@@ -31,7 +36,11 @@ let spotifyClientToken = null;
 function getBaseUrl(req) {
 	const configured = process.env.APP_BASE_URL || process.env.PUBLIC_URL;
 	if (configured) return configured.replace(/\/$/, "");
-	return `${req.protocol}://${req.get("host")}`;
+	// Prefer the forwarded protocol (first value if it's a comma-separated list)
+	// so we always advertise https when fronted by a proxy.
+	const forwardedProto = (req.get("x-forwarded-proto") || "").split(",")[0].trim();
+	const proto = forwardedProto || req.protocol;
+	return `${proto}://${req.get("host")}`;
 }
 
 function getSpotifyRedirectUri(req) {

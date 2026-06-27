@@ -87,6 +87,23 @@ const EMOJIS = [
 
 function pct(v) { return `${Math.round(v * 100)}%`; }
 
+// Seeded RNG so each "refresh" produces a different-but-stable recommendation
+// order (stable across re-renders for a given seed; new on each click).
+function hashStr(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // Resize an image file to a square-cropped base64 JPEG for storage
 async function resizeImage(file, size = 320) {
   return new Promise(resolve => {
@@ -452,9 +469,15 @@ function ProfileCard({ name, profile, vibePos, isSelf, onSave, onPhotoClick }) {
 // ---- Personalized playlist -------------------------------------------------
 function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions, songsByArtist, onExport }) {
   const userVibe = vibePositions[currentUser];
+  const [refreshSeed, setRefreshSeed] = useVibeState(0);
   if (!userVibe) return null;
 
   const avp = artistVibePositions || {};
+
+  // Seed 0 = deterministic "best match first". Each refresh adds seeded jitter
+  // to the match scores so different (still well-matched) artists surface.
+  const rand = mulberry32(hashStr(currentUser) + Math.imul(refreshSeed, 2654435761));
+  const jitter = refreshSeed === 0 ? 0 : 0.25;
 
   // Dot product measures genre alignment (not just proximity).
   // A center user (0.33/0.33/0.33) gets equal scores for all corners → even mix.
@@ -481,8 +504,11 @@ function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions,
     else if (pos.b >= pos.t) buckets.B.push(entry);
     else buckets.T.push(entry);
   }
-  // Within each bucket, best dot-product match first
-  for (const k of ['H', 'B', 'T']) buckets[k].sort((a, b) => b.score - a.score);
+  // Within each bucket, best dot-product match first (+ seeded jitter on refresh)
+  for (const k of ['H', 'B', 'T']) {
+    for (const e of buckets[k]) e.rank = e.score + (jitter ? rand() * jitter : 0);
+    buckets[k].sort((a, b) => b.rank - a.rank);
+  }
 
   // Weighted round-robin: pull from each genre bucket proportional to user's vibe weights.
   // This guarantees a center user gets an even genre mix, a 70% House user gets mostly House, etc.
@@ -531,18 +557,33 @@ function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions,
           </p>
         </div>
         {forYouSongs.length > 0 && (
-          <button
-            onClick={() => onExport({ kind: 'vibe', person: currentUser, vibeRankedArtistIds })}
-            style={{
-              padding: '9px 16px', borderRadius: 6,
-              background: 'rgba(29,185,84,0.1)', border: '1px solid rgba(29,185,84,0.4)',
-              color: '#1DB954', cursor: 'pointer', flexShrink: 0,
-              fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-            <window.SpotifyGlyph size={14}/>
-            Export ({forYouSongs.length})
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+            <button
+              onClick={() => setRefreshSeed(s => s + 1)}
+              title="Shuffle for new recommendations"
+              style={{
+                padding: '9px 14px', borderRadius: 6,
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)',
+                color: 'rgba(244,234,216,0.75)', cursor: 'pointer',
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 7,
+              }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>↻</span>
+              Refresh
+            </button>
+            <button
+              onClick={() => onExport({ kind: 'vibe', person: currentUser, vibeRankedArtistIds })}
+              style={{
+                padding: '9px 16px', borderRadius: 6,
+                background: 'rgba(29,185,84,0.1)', border: '1px solid rgba(29,185,84,0.4)',
+                color: '#1DB954', cursor: 'pointer',
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+              <window.SpotifyGlyph size={14}/>
+              Export ({forYouSongs.length})
+            </button>
+          </div>
         )}
       </div>
 
