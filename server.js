@@ -81,7 +81,9 @@ function requestJson(url, options = {}, body = null) {
 						data ||
 						response.statusMessage;
 					console.error(`[spotify] ${response.statusCode} from ${reqOptions.path} — raw: ${data}`);
-					return reject(new Error(`HTTP ${response.statusCode}: ${message}`));
+					const err = new Error(`HTTP ${response.statusCode}: ${message}`);
+					err.status = response.statusCode;
+					return reject(err);
 				}
 				resolve(json);
 			});
@@ -151,6 +153,14 @@ function setSpotifyTokenCookie(res, accessToken, expiresIn) {
 			60,
 			expiresIn || 3600
 		)}${secure}`
+	);
+}
+
+function clearSpotifyTokenCookie(res) {
+	const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+	res.setHeader(
+		"Set-Cookie",
+		`spotify_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`
 	);
 }
 
@@ -595,7 +605,26 @@ app.post("/api/music/export/spotify/direct", async (req, res) => {
 			trackCount: uris.length,
 		});
 	} catch (error) {
-		res.status(500).json({ error: error.message });
+		// 401 = token expired/invalid → drop the stale cookie so the next attempt
+		// re-runs OAuth. 403 = authenticated but not allowed: the Spotify app is in
+		// Development Mode and this account isn't on its User Management allowlist.
+		if (error.status === 401) {
+			clearSpotifyTokenCookie(res);
+			return res.status(401).json({
+				error: "Your Spotify session expired. Click export again to reconnect.",
+				requiresReauth: true,
+			});
+		}
+		if (error.status === 403) {
+			clearSpotifyTokenCookie(res);
+			return res.status(403).json({
+				error:
+					"Spotify rejected the request (403). This app is in Development Mode, " +
+					"so your Spotify account must be added under Dashboard → User Management " +
+					"before you can save playlists.",
+			});
+		}
+		res.status(error.status || 500).json({ error: error.message });
 	}
 });
 
