@@ -155,15 +155,19 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
   const [day, setDay] = useStateS("Friday");
   const [filter, setFilter] = useStateS("all"); // all | mine | group
 
-  // Group artists by stage for the chosen day
+  // Group artists by stage for the chosen day. "Interest" = fan heart,
+  // must-see star, or curious mark — all three count for the filters.
   const filteredArtists = useMemoS(() => {
     return window.ARTISTS.filter(a => {
       if (a.day !== day) return false;
-      if (filter === "mine")  return (state.fans[a.id] || []).includes(currentUser);
-      if (filter === "group") return (state.fans[a.id] || []).length > 0;
+      const fans = state.fans[a.id] || [];
+      const mustSee = (state.mustSeeByArtist || {})[a.id] || [];
+      const curious = (state.curiousByArtist || {})[a.id] || [];
+      if (filter === "mine")  return fans.includes(currentUser) || mustSee.includes(currentUser) || curious.includes(currentUser);
+      if (filter === "group") return fans.length + mustSee.length + curious.length > 0;
       return true;
     });
-  }, [day, filter, state.fans, currentUser]);
+  }, [day, filter, state.fans, state.mustSeeByArtist, state.curiousByArtist, currentUser]);
 
   // For timeline grid: gather time range
   const stages = ["water", "air", "earth", "fire"];
@@ -183,7 +187,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
         <FilterDD label="Day" value={day} onChange={setDay} options={["Friday", "Saturday", "Sunday"]}/>
         <FilterDD label="Show" value={filter} onChange={setFilter} options={[
           { v: "all", l: "All sets" },
-          { v: "mine", l: "My fan picks" },
+          { v: "mine", l: "My picks" },
           { v: "group", l: "Group picks" },
         ]}/>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
@@ -192,14 +196,14 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
             color: "rgba(244, 234, 216, 0.45)", letterSpacing: "0.14em",
           }}>SET TIMES</span>
           <span style={{
-            padding: "3px 8px", background: "rgba(232, 199, 122, 0.12)",
-            color: "#E8C77A",
+            padding: "3px 8px", background: "rgba(127, 176, 105, 0.12)",
+            color: "#7FB069",
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
             letterSpacing: "0.1em",
-            border: "1px solid rgba(232, 199, 122, 0.3)",
-          }}>INFERRED</span>
+            border: "1px solid rgba(127, 176, 105, 0.3)",
+          }}>OFFICIAL</span>
           <span style={{ fontSize: 12, color: "rgba(244, 234, 216, 0.5)" }}>
-            Will lock to official times when announced.
+            Final times from the festival's release.
           </span>
         </div>
       </div>
@@ -211,8 +215,10 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
         color: "rgba(244, 234, 216, 0.5)",
       }}>
         <span>HEART = YOU'RE A FAN</span>
-        <span style={{ color: "rgba(232, 199, 122, 0.7)" }}>★ GLOW = GROUP PICK</span>
-        <span>OPACITY = NO FANS YET</span>
+        <span style={{ color: "rgba(232, 199, 122, 0.7)" }}>★ = MUST SEE</span>
+        <span style={{ color: "rgba(63, 184, 176, 0.8)" }}>? = CURIOUS</span>
+        <span style={{ color: "rgba(232, 199, 122, 0.7)" }}>GLOW = GROUP PICK</span>
+        <span>OPACITY = NO INTEREST YET</span>
       </div>
 
       {/* Timeline grid */}
@@ -272,24 +278,31 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
             }}>
               {filteredArtists.filter(a => a.stage === s).map(a => {
                 const fans = state.fans[a.id] || [];
+                const mustSee = (state.mustSeeByArtist || {})[a.id] || [];
+                const curious = (state.curiousByArtist || {})[a.id] || [];
                 const songs = state.songsByArtist[a.id] || [];
                 const isFan = fans.includes(currentUser);
-                const groupPick = fans.length >= 2;
+                const isMustSee = mustSee.includes(currentUser);
+                const isCurious = curious.includes(currentUser);
+                const interested = [...mustSee, ...fans.filter(n => !mustSee.includes(n)), ...curious.filter(n => !mustSee.includes(n) && !fans.includes(n))];
+                const groupPick = new Set([...fans, ...mustSee]).size >= 2;
                 const top = ((toMin(a.timeStart) - startMins) / 60) * hourPx;
                 const height = ((toMin(a.timeEnd) - toMin(a.timeStart)) / 60) * hourPx - 2;
                 const tint = window.STAGE_TINTS[s];
+                // Personal accent: must-see (gold) > fan (stage tint) > curious (teal).
+                const accent = isMustSee ? "#E8C77A" : isFan ? tint.fg : isCurious ? "#3FB8B0" : null;
 
                 return (
                   <button key={a.id} onClick={() => onArtistClick(a)} style={{
                     position: "absolute", left: 6, right: 6,
                     top, height,
-                    background: isFan ? `${tint.fg}14` : (fans.length === 0 ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)"),
-                    border: `1px solid ${isFan ? tint.fg : (groupPick ? "rgba(232, 199, 122, 0.5)" : "rgba(255,255,255,0.08)")}`,
+                    background: accent ? `${accent}14` : (interested.length === 0 ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)"),
+                    border: `1px solid ${accent || (groupPick ? "rgba(232, 199, 122, 0.5)" : "rgba(255,255,255,0.08)")}`,
                     borderLeft: `3px solid ${tint.fg}`,
                     boxShadow: groupPick ? "0 0 0 1px rgba(232, 199, 122, 0.25), 0 0 18px rgba(232, 199, 122, 0.15)" : "none",
                     padding: "6px 8px", textAlign: "left",
                     cursor: "pointer", overflow: "hidden",
-                    opacity: filter === "all" && fans.length === 0 ? 0.55 : 1,
+                    opacity: filter === "all" && interested.length === 0 ? 0.55 : 1,
                   }}>
                     <div style={{
                       display: "flex", alignItems: "center", gap: 4, marginBottom: 2,
@@ -297,11 +310,17 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
                       color: "rgba(244, 234, 216, 0.55)", letterSpacing: "0.06em",
                     }}>
                       <span>{window.fmtClock(a.timeStart)}</span>
+                      {isMustSee && <span style={{ color: "#E8C77A", fontSize: 10 }}>★</span>}
                       {isFan && (
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="#E8553F">
                           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                         </svg>
                       )}
+                      {isCurious && <span style={{ color: "#3FB8B0", fontSize: 10, fontWeight: 700 }}>?</span>}
+                      <span style={{ marginLeft: "auto", display: "inline-flex", gap: 5 }}>
+                        {mustSee.length > 0 && <span style={{ color: "#E8C77A" }}>★{mustSee.length}</span>}
+                        {curious.length > 0 && <span style={{ color: "#3FB8B0" }}>?{curious.length}</span>}
+                      </span>
                     </div>
                     <div style={{
                       fontFamily: "'Bricolage Grotesque', serif", fontWeight: 700,
@@ -309,9 +328,9 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
                       letterSpacing: "-0.01em",
                       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                     }}>{a.artist}</div>
-                    {fans.length > 0 && height > 60 && (
+                    {interested.length > 0 && height > 60 && (
                       <div style={{ marginTop: 6 }}>
-                        <window.AvatarStack names={fans} size={16} max={4}/>
+                        <window.AvatarStack names={interested} size={16} max={4}/>
                       </div>
                     )}
                     {songs.length > 0 && height > 90 && (

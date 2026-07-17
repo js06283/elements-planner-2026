@@ -438,7 +438,7 @@ function App() {
         color: "rgba(244, 234, 216, 0.35)", letterSpacing: "0.1em",
       }}>
         <span>ELEMENTS · SOUNDS LIKE THE WOODS · 2026</span>
-        <span>SET TIMES INFERRED · WILL LOCK ON ANNOUNCEMENT</span>
+        <span>SET TIMES OFFICIAL · AUG 7–9 · LONG POND, PA</span>
         <span>{Object.values(state.songsByArtist).flat().length} SONGS · {Object.values(state.fans).flat().length} FAN MARKS</span>
       </div>
 
