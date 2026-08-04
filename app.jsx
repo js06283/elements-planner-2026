@@ -173,7 +173,6 @@ function App() {
   const [tab, setTab] = useStateApp("discovery"); // discovery | songs | schedule
   const [activeArtist, setActiveArtist] = useStateApp(null);
   const [addSongFor, setAddSongFor] = useStateApp(null);
-  const [exportRequest, setExportRequest] = useStateApp(null);
   const [toast, setToast] = useStateApp(null);
   const [profileOpen, setProfileOpen] = useStateApp(false);
   const [tweaks, setTweak] = window.useTweaks ? window.useTweaks(TWEAKS) : [TWEAKS, () => {}];
@@ -328,40 +327,6 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Resume Spotify export after OAuth redirect
-  useEffectApp(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (!params.get("spotifyAuthed")) return;
-
-    // Clean the URL immediately
-    window.history.replaceState({}, "", window.location.pathname);
-
-    // Check for a pending direct export stored before redirect
-    const pending = sessionStorage.getItem("spotifyExportPending");
-    if (!pending) return;
-    sessionStorage.removeItem("spotifyExportPending");
-
-    let req;
-    try { req = JSON.parse(pending); } catch { return; }
-
-    // Retry the export now that the auth cookie is set
-    fetch("/api/music/export/spotify/direct", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok) {
-          setToast({ message: `Playlist "${req.name}" created · ${data.trackCount} tracks`, kind: "spotify" });
-          if (data.playlistUrl) window.open(data.playlistUrl, "_blank", "noopener");
-        } else {
-          setToast({ message: data.error || "Export failed", kind: "info" });
-        }
-      })
-      .catch(() => setToast({ message: "Export failed — try again", kind: "info" }));
-  }, []);
-
   const currentUser = state.currentUser;
 
   return (
@@ -384,7 +349,6 @@ function App() {
         setTab={setTab}
         currentUser={currentUser}
         onPickProfile={() => setProfileOpen(true)}
-        onExportAll={() => setExportRequest({ kind: "all" })}
       />
 
       {/* Body */}
@@ -403,7 +367,7 @@ function App() {
             state={state}
             dispatch={dispatch}
             currentUser={currentUser}
-            onExport={req => setExportRequest(req)}
+            onAddSong={a => { setActiveArtist(a); setAddSongFor(a); }}
           />
         )}
         {tab === "schedule" && (
@@ -423,7 +387,6 @@ function App() {
             onSaveVibePos={(pos) => saveStateNow({
               vibePositions: { ...state.vibePositions, [currentUser]: pos },
             })}
-            onExport={req => setExportRequest(req)}
           />
         )}
       </div>
@@ -451,7 +414,6 @@ function App() {
         currentUser={currentUser}
         onClose={() => setActiveArtist(null)}
         onAddSong={() => setAddSongFor(activeArtist)}
-        onExport={req => setExportRequest(req)}
         onSaveArtistVibePos={(artistId, pos) => saveStateNow({
           artistVibePositions: { ...state.artistVibePositions, [artistId]: pos },
         })}
@@ -476,14 +438,6 @@ function App() {
         }}
       />
 
-      <window.ExportSheet
-        open={!!exportRequest}
-        onClose={() => setExportRequest(null)}
-        request={exportRequest}
-        state={state}
-        onToast={(t) => setToast(t)}
-      />
-
       <ProfileModal
         open={profileOpen}
         currentUser={currentUser}
@@ -500,7 +454,7 @@ function App() {
 }
 
 // ---- Header -----------------------------------------------------------------
-function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
+function Header({ tab, setTab, currentUser, onPickProfile }) {
   const tabs = [
     { id: "discovery", label: "Discovery" },
     { id: "songs",     label: "Songs" },
@@ -552,16 +506,6 @@ function Header({ tab, setTab, currentUser, onPickProfile, onExportAll }) {
 
         {/* Right cluster */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onExportAll} style={{
-            padding: "8px 14px", borderRadius: 4,
-            background: "transparent", color: "#F4EAD8",
-            border: "1px solid rgba(255,255,255,0.15)",
-            fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 600,
-            cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
-          }}>
-            <window.SpotifyGlyph size={12}/>
-            Export to Spotify
-          </button>
           <button onClick={onPickProfile} style={{
             padding: "5px 14px 5px 6px", borderRadius: 999,
             background: "rgba(255,255,255,0.06)",

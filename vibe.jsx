@@ -466,8 +466,8 @@ function ProfileCard({ name, profile, vibePos, isSelf, onSave, onPhotoClick }) {
   );
 }
 
-// ---- Personalized playlist -------------------------------------------------
-function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions, songsByArtist, onExport }) {
+// ---- Personalized songs ----------------------------------------------------
+function PersonalizedSongs({ currentUser, vibePositions, artistVibePositions, songsByArtist }) {
   const userVibe = vibePositions[currentUser];
   const [refreshSeed, setRefreshSeed] = useVibeState(0);
   if (!userVibe) return null;
@@ -531,7 +531,6 @@ function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions,
     total++;
   }
 
-  const vibeRankedArtistIds = artistOrder.map(e => e.artist.id);
   const forYouSongs = artistOrder.flatMap(({ songs: s }) =>
     [...s].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0))
   );
@@ -570,18 +569,6 @@ function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions,
               }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>↻</span>
               Refresh
-            </button>
-            <button
-              onClick={() => onExport({ kind: 'vibe', person: currentUser, vibeRankedArtistIds })}
-              style={{
-                padding: '9px 16px', borderRadius: 6,
-                background: 'rgba(29,185,84,0.1)', border: '1px solid rgba(29,185,84,0.4)',
-                color: '#1DB954', cursor: 'pointer',
-                fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-              <window.SpotifyGlyph size={14}/>
-              Export ({forYouSongs.length})
             </button>
           </div>
         )}
@@ -654,7 +641,7 @@ function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions,
               color: 'rgba(244,234,216,0.3)', fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10, letterSpacing: '0.1em',
             }}>
-              + {forYouSongs.length - 30} MORE TRACKS IN THE EXPORT
+              + {forYouSongs.length - 30} MORE SONGS
             </div>
           )}
         </>
@@ -664,7 +651,7 @@ function PersonalizedPlaylist({ currentUser, vibePositions, artistVibePositions,
 }
 
 // ---- Main view -------------------------------------------------------------
-function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos, onExport }) {
+function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos }) {
   const [hovered, setHovered] = useVibeState(null);
   const [lightbox, setLightbox] = useVibeState(null); // { src, name }
   const [pendingPos, setPendingPos] = useVibeState(null); // unsaved click position
@@ -966,16 +953,13 @@ function VibeView({ state, dispatch, currentUser, onPickProfile, onSaveVibePos, 
         </div>
       )}
 
-      {/* Personalized playlist */}
-      {onExport && (
-        <PersonalizedPlaylist
-          currentUser={currentUser}
-          vibePositions={vibePositions}
-          artistVibePositions={state.artistVibePositions}
-          songsByArtist={state.songsByArtist}
-          onExport={onExport}
-        />
-      )}
+      <PersonalizedSongs
+        currentUser={currentUser}
+        vibePositions={vibePositions}
+        artistVibePositions={state.artistVibePositions}
+        songsByArtist={state.songsByArtist}
+      />
+
     </div>
   );
 }

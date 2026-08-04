@@ -3,10 +3,11 @@
 
 const { useState: useStateS, useMemo: useMemoS } = React;
 
-function SongsView({ state, dispatch, currentUser, onExport }) {
+function SongsView({ state, dispatch, currentUser, onAddSong }) {
   const [filterPerson, setFilterPerson] = useStateS("All");
   const [filterGenre,  setFilterGenre]  = useStateS("All");
   const [sort,         setSort]         = useStateS("recent");
+  const [query,        setQuery]        = useStateS("");
 
   // Flatten
   const allSongs = useMemoS(() => {
@@ -25,81 +26,69 @@ function SongsView({ state, dispatch, currentUser, onExport }) {
     let out = allSongs;
     if (filterPerson !== "All") out = out.filter(s => s.addedBy === filterPerson);
     if (filterGenre !== "All")  out = out.filter(s => s.genre === filterGenre);
-    if (sort === "hearts")       out = [...out].sort((a, b) => (b.hearts?.length || 0) - (a.hearts?.length || 0));
-    else if (sort === "recent")  out = [...out].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
-    else if (sort === "artist")  out = [...out].sort((a, b) => a.artist.localeCompare(b.artist));
+    const needle = query.trim().toLowerCase();
+    if (needle) out = out.filter(s => `${s.title} ${s.artist} ${s.album || ""}`.toLowerCase().includes(needle));
     return out;
-  }, [allSongs, filterPerson, filterGenre, sort]);
+  }, [allSongs, filterPerson, filterGenre, query]);
+
+  const artistGroups = useMemoS(() => {
+    const groups = new Map();
+    filtered.forEach(song => {
+      if (!groups.has(song.artistId)) groups.set(song.artistId, { artist: window.ARTISTS.find(a => a.id === song.artistId), songs: [] });
+      groups.get(song.artistId).songs.push(song);
+    });
+    const out = Array.from(groups.values());
+    out.forEach(group => group.songs.sort((a, b) => {
+      if (sort === "hearts") return (b.hearts?.length || 0) - (a.hearts?.length || 0);
+      return (b.addedAt || 0) - (a.addedAt || 0);
+    }));
+    return out.sort((a, b) => {
+      if (sort === "artist") return a.artist.artist.localeCompare(b.artist.artist);
+      if (sort === "hearts") return b.songs.reduce((n, s) => n + (s.hearts?.length || 0), 0) - a.songs.reduce((n, s) => n + (s.hearts?.length || 0), 0);
+      return Math.max(...b.songs.map(s => s.addedAt || 0)) - Math.max(...a.songs.map(s => s.addedAt || 0));
+    });
+  }, [filtered, sort]);
 
   const genres = useMemoS(() => {
     const set = new Set(allSongs.map(s => s.genre));
     return ["All", ...Array.from(set).sort()];
   }, [allSongs]);
 
-  const people = ["All", ...window.FRIENDS.map(f => f.name)];
+  const people = ["All", ...new Set(allSongs.map(s => s.addedBy).filter(Boolean))];
+  const totalHearts = allSongs.reduce((n, s) => n + (s.hearts?.length || 0), 0);
 
   return (
     <div>
-      {/* Header strip */}
+      <div style={{ padding: "22px 0 20px" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.15em", color: "#E8C77A", marginBottom: 8 }}>GROUP SONGBOOK</div>
+        <h1 style={{ margin: 0, fontFamily: "'Bricolage Grotesque', serif", fontSize: 34, letterSpacing: "-0.025em" }}>Songs worth hearing before the festival</h1>
+        <p style={{ margin: "8px 0 0", color: "rgba(244,234,216,0.55)", fontSize: 14 }}>Browse what the crew added, grouped by artist. Heart the tracks you want in rotation.</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 20 }}>
+        <SongLibraryStat label="Songs" value={allSongs.length}/>
+        <SongLibraryStat label="Artists" value={new Set(allSongs.map(s => s.artistId)).size}/>
+        <SongLibraryStat label="Contributors" value={new Set(allSongs.map(s => s.addedBy).filter(Boolean)).size}/>
+        <SongLibraryStat label="Hearts" value={totalHearts}/>
+      </div>
+
+      {/* Library controls */}
       <div style={{
         display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
         padding: "20px 0", borderBottom: "1px solid rgba(255,255,255,0.06)",
-        marginBottom: 20,
+        marginBottom: 24,
       }}>
-        <FilterDD label="By" value={filterPerson} onChange={setFilterPerson} options={people}/>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search songs or artists…" style={{ minWidth: 240, flex: "1 1 260px", padding: "9px 12px", background: "rgba(255,255,255,0.04)", color: "#F4EAD8", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, fontSize: 13 }}/>
+        <FilterDD label="Added by" value={filterPerson} onChange={setFilterPerson} options={people}/>
         <FilterDD label="Genre" value={filterGenre} onChange={setFilterGenre} options={genres}/>
         <FilterDD label="Sort" value={sort} onChange={setSort} options={[
           { v: "recent", l: "Most Recent" },
           { v: "hearts", l: "Most Hearts" },
           { v: "artist", l: "Artist A→Z" },
         ]}/>
-        <div style={{ marginLeft: "auto" }}>
-          <button onClick={() => onExport({ kind: "all" })} style={{
-            padding: "10px 16px", borderRadius: 4,
-            background: "#E8C77A", color: "#0E0B08",
-            border: "none", cursor: "pointer",
-            fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 700,
-            letterSpacing: "0.02em",
-          }}>Export this list →</button>
-        </div>
       </div>
 
-      {/* Quick chips for export shortcuts */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          color: "rgba(244, 234, 216, 0.45)", letterSpacing: "0.14em",
-          alignSelf: "center", marginRight: 4,
-        }}>QUICK EXPORT</span>
-        {window.FRIENDS.slice(0, 4).map(f => (
-          <button key={f.name} onClick={() => onExport({ kind: "person", person: f.name })} style={{
-            padding: "6px 12px 6px 8px", borderRadius: 999,
-            background: "rgba(255,255,255,0.04)",
-            color: "#F4EAD8",
-            border: "1px solid rgba(255,255,255,0.08)",
-            display: "inline-flex", alignItems: "center", gap: 6,
-            fontFamily: "'Inter Tight', sans-serif", fontSize: 12,
-            cursor: "pointer",
-          }}>
-            <window.Avatar name={f.name} size={18}/>
-            {f.name}'s picks
-          </button>
-        ))}
-        {["Dubstep", "Tech House", "Techno"].map(g => (
-          <button key={g} onClick={() => onExport({ kind: "genre", genre: g })} style={{
-            padding: "6px 12px", borderRadius: 999,
-            background: "rgba(255,255,255,0.04)",
-            color: "#F4EAD8",
-            border: "1px solid rgba(255,255,255,0.08)",
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-            letterSpacing: "0.04em", cursor: "pointer",
-          }}>
-            {g.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {/* Songs table */}
+      {/* Songs grouped by artist */}
       {filtered.length === 0 ? (
         <div style={{
           padding: "60px 24px", textAlign: "center",
@@ -109,20 +98,34 @@ function SongsView({ state, dispatch, currentUser, onExport }) {
           No songs match. Try clearing filters, or head to Discovery to add some.
         </div>
       ) : (
-        <div style={{
-          background: "#15110D", border: "1px solid rgba(255,255,255,0.06)",
-        }}>
-          {filtered.map(s => (
-            <window.SongRow key={`${s.artistId}-${s.id}`} song={s} currentUser={currentUser}
-              showArtist
-              onHeart={() => dispatch({ type: "toggleHeart", artistId: s.artistId, songId: s.id, user: currentUser })}
-              onRemove={s.addedBy === currentUser ? () => dispatch({ type: "removeSong", artistId: s.artistId, songId: s.id }) : null}
-            />
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(420px, 100%), 1fr))", gap: 18 }}>
+          {artistGroups.map(({ artist, songs }) => {
+            const tint = window.STAGE_TINTS[artist.stage];
+            return <section key={artist.id} style={{ background: "#15110D", border: "1px solid rgba(255,255,255,0.07)", borderTop: `3px solid ${tint.fg}` }}>
+              <div style={{ padding: "15px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h2 style={{ margin: 0, fontFamily: "'Bricolage Grotesque', serif", fontSize: 20, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{artist.artist}</h2>
+                  <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "rgba(244,234,216,0.48)", letterSpacing: "0.08em" }}>{artist.day.toUpperCase()} · {tint.label} · {songs.length} {songs.length === 1 ? "SONG" : "SONGS"}</div>
+                </div>
+                <button onClick={() => onAddSong(artist)} style={{ padding: "7px 10px", borderRadius: 4, background: "rgba(232,199,122,0.1)", color: "#E8C77A", border: "1px solid rgba(232,199,122,0.3)", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>+ Add song</button>
+              </div>
+              {songs.map(s => <window.SongRow key={`${s.artistId}-${s.id}`} song={s} currentUser={currentUser}
+                onHeart={() => dispatch({ type: "toggleHeart", artistId: s.artistId, songId: s.id, user: currentUser })}
+                onRemove={s.addedBy === currentUser ? () => dispatch({ type: "removeSong", artistId: s.artistId, songId: s.id }) : null}
+              />)}
+            </section>;
+          })}
         </div>
       )}
     </div>
   );
+}
+
+function SongLibraryStat({ label, value }) {
+  return <div style={{ padding: "14px 16px", background: "#15110D" }}>
+    <div style={{ fontFamily: "'Bricolage Grotesque', serif", fontSize: 24, fontWeight: 750 }}>{value}</div>
+    <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: "rgba(244,234,216,0.42)" }}>{label.toUpperCase()}</div>
+  </div>;
 }
 
 function FilterDD({ label, value, onChange, options }) {

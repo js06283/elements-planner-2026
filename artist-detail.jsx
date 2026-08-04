@@ -2,7 +2,7 @@
 
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA, useRef: useRefA } = React;
 
-function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose, onAddSong, onExport, onSaveArtistVibePos }) {
+function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose, onAddSong, onSaveArtistVibePos }) {
   if (!artist) return null;
   const fans = state.fans[artist.id] || [];
   const mustSee = (state.mustSeeByArtist || {})[artist.id] || [];
@@ -143,16 +143,6 @@ function ArtistDetailModal({ open, artist, state, dispatch, currentUser, onClose
               fontFamily: "'Bricolage Grotesque', serif", fontWeight: 600,
               fontSize: 18, color: "#F4EAD8", margin: 0, letterSpacing: "-0.01em",
             }}>Songs the group loves</h3>
-            {songs.length > 0 && (
-              <button onClick={() => onExport({ kind: "artist", artistId: artist.id })} style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                padding: "6px 12px", borderRadius: 999,
-                background: "transparent", color: "#E8C77A",
-                border: "1px solid rgba(232, 199, 122, 0.4)",
-                fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 600,
-                cursor: "pointer",
-              }}>Export playlist →</button>
-            )}
           </div>
 
           {songs.length === 0 ? (
