@@ -154,6 +154,7 @@ function FilterDD({ label, value, onChange, options }) {
 function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
   const [day, setDay] = useStateS("Friday");
   const [filter, setFilter] = useStateS("all"); // all | mine | group
+  const [exportOpen, setExportOpen] = useStateS(false);
 
   // Group artists by stage for the chosen day. "Interest" = fan heart,
   // must-see star, or curious mark — all three count for the filters.
@@ -190,6 +191,13 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
           { v: "mine", l: "My picks" },
           { v: "group", l: "Group picks" },
         ]}/>
+        <button onClick={() => setExportOpen(true)} style={{
+          padding: "9px 13px", borderRadius: 4,
+          background: "rgba(232, 199, 122, 0.1)", color: "#E8C77A",
+          border: "1px solid rgba(232, 199, 122, 0.35)",
+          fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 700,
+          cursor: "pointer",
+        }}>Export screensaver</button>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
@@ -207,6 +215,14 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
           </span>
         </div>
       </div>
+
+      <window.ScheduleExportSheet
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        state={state}
+        currentUser={currentUser}
+        initialDay={day}
+      />
 
       {/* Legend */}
       <div style={{
@@ -318,6 +334,14 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
                       )}
                       {isCurious && <span style={{ color: "#3FB8B0", fontSize: 10, fontWeight: 700 }}>?</span>}
                       <span style={{ marginLeft: "auto", display: "inline-flex", gap: 5 }}>
+                        {fans.length > 0 && (
+                          <span title={`${fans.length} fan${fans.length === 1 ? "" : "s"}`} style={{ color: "#E8553F", display: "inline-flex", alignItems: "center", gap: 2 }}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                            </svg>
+                            {fans.length}
+                          </span>
+                        )}
                         {mustSee.length > 0 && <span style={{ color: "#E8C77A" }}>★{mustSee.length}</span>}
                         {curious.length > 0 && <span style={{ color: "#3FB8B0" }}>?{curious.length}</span>}
                       </span>
