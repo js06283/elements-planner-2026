@@ -17,6 +17,19 @@ function scheduleExportInterest(state, artistId) {
   return [...new Set([...mustSee, ...fans, ...curious])];
 }
 
+function scheduleExportPickStyle(state, artistId, person) {
+  if (((state.mustSeeByArtist || {})[artistId] || []).includes(person)) {
+    return { kind: "must-see", color: "#F2D27F", fill: "#342B18" };
+  }
+  if (((state.curiousByArtist || {})[artistId] || []).includes(person)) {
+    return { kind: "curious", color: "#3FB8B0", fill: "#15302E" };
+  }
+  if ((state.fans[artistId] || []).includes(person)) {
+    return { kind: "like", color: "#E8553F", fill: "#351C18" };
+  }
+  return null;
+}
+
 function scheduleExportPersonColor(state, name) {
   return scheduleExportPeople(state).find(f => f.name === name)?.color || "#9B8E7D";
 }
@@ -110,18 +123,19 @@ function drawScheduleExport(state, day, person) {
     const height = Math.max(86, (toMin(show.timeEnd) - toMin(show.timeStart)) * minuteScale - 8);
     const tint = window.STAGE_TINTS[show.stage];
     const interested = scheduleExportInterest(state, show.id);
-    const selected = interested.includes(person);
+    const pickStyle = scheduleExportPickStyle(state, show.id, person);
+    const selected = !!pickStyle;
 
-    ctx.fillStyle = selected ? "#342B18" : tint.bg;
+    ctx.fillStyle = selected ? pickStyle.fill : tint.bg;
     roundScheduleRect(ctx, x, y, columnWidth, height, 14);
     ctx.fill();
-    ctx.strokeStyle = selected ? "#F2D27F" : `${tint.fg}88`;
+    ctx.strokeStyle = selected ? pickStyle.color : `${tint.fg}88`;
     ctx.lineWidth = selected ? 6 : 2;
     roundScheduleRect(ctx, x, y, columnWidth, height, 14);
     ctx.stroke();
 
     if (selected) {
-      ctx.fillStyle = "#F2D27F";
+      ctx.fillStyle = pickStyle.color;
       roundScheduleRect(ctx, x + 9, y + 9, 12, Math.max(18, height - 18), 6);
       ctx.fill();
     }
@@ -148,7 +162,7 @@ function drawScheduleExport(state, day, person) {
       ctx.arc(chipX + chipSize / 2, chipsY + chipSize / 2, chipSize / 2, 0, Math.PI * 2);
       ctx.fill();
       if (name === person) {
-        ctx.strokeStyle = "#FFF1B8";
+        ctx.strokeStyle = pickStyle?.color || "#FFF1B8";
         ctx.lineWidth = 3;
         ctx.stroke();
       }
@@ -173,10 +187,17 @@ function drawScheduleExport(state, day, person) {
     ctx.textAlign = "left";
   });
 
-  ctx.fillStyle = "rgba(244,234,216,0.58)";
-  ctx.font = '500 22px "Inter Tight", sans-serif';
+  ctx.font = '700 22px "JetBrains Mono", monospace';
   ctx.textBaseline = "top";
-  ctx.fillText("Colored initials show group interest · outlined initial is selected person", 64, 2680);
+  ctx.fillStyle = "#E8553F";
+  ctx.fillText("♥ LIKE", 64, 2672);
+  ctx.fillStyle = "#3FB8B0";
+  ctx.fillText("? CURIOUS", 190, 2672);
+  ctx.fillStyle = "#F2D27F";
+  ctx.fillText("★ MUST SEE", 356, 2672);
+  ctx.fillStyle = "rgba(244,234,216,0.58)";
+  ctx.font = '500 20px "Inter Tight", sans-serif';
+  ctx.fillText("Colored initials show group interest · outlined initial is selected person", 64, 2712);
   return canvas;
 }
 
@@ -196,19 +217,43 @@ function ScheduleExportSheet({ open, onClose, state, currentUser, initialDay = "
     return () => { cancelled = true; };
   }, [open, day, person, state]);
 
-  const download = async () => {
+  const makeExport = async () => {
     await Promise.resolve(document.fonts?.ready).catch(() => {});
     const canvas = drawScheduleExport(state, day, person);
-    canvas.toBlob(blob => {
-      if (!blob) return;
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("This browser could not create the PNG.");
+    const filename = `elements-2026-${day.toLowerCase()}-${person.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-screensaver.png`;
+    return { blob, filename };
+  };
+
+  const download = async () => {
+    try {
+      const { blob, filename } = await makeExport();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `elements-2026-${day.toLowerCase()}-${person.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-screensaver.png`;
+      link.download = filename;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-      onToast?.({ message: `${day} screensaver downloaded`, kind: "success" });
-    }, "image/png");
+      onToast?.(`${day} screensaver downloaded`);
+    } catch (error) {
+      onToast?.(error.message);
+    }
+  };
+
+  const shareToPhotos = async () => {
+    try {
+      const { blob, filename } = await makeExport();
+      const file = new File([blob], filename, { type: "image/png" });
+      if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
+        await download();
+        onToast?.("Image sharing is unavailable here, so the PNG was downloaded instead.");
+        return;
+      }
+      await navigator.share({ files: [file], title: `${day} · Elements 2026 schedule` });
+    } catch (error) {
+      if (error?.name !== "AbortError") onToast?.(error.message);
+    }
   };
 
   return (
@@ -217,12 +262,23 @@ function ScheduleExportSheet({ open, onClose, state, currentUser, initialDay = "
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <ScheduleExportSelect label="Day" value={day} onChange={setDay} options={["Friday", "Saturday", "Sunday"]}/>
           <ScheduleExportSelect label="Highlight picks for" value={person} onChange={setPerson} options={people.map(p => p.name)}/>
-          <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(244,234,216,0.58)" }}>
-            Gold-bordered sets are picks for {person}. Colored initial chips show everyone interested; busy sets collapse extras into a +N marker.
+          <div style={{ fontSize: 13, lineHeight: 1.65, color: "rgba(244,234,216,0.58)" }}>
+            <span style={{ color: "#E8553F", fontWeight: 700 }}>♥ Like</span>{" · "}
+            <span style={{ color: "#3FB8B0", fontWeight: 700 }}>? Curious</span>{" · "}
+            <span style={{ color: "#F2D27F", fontWeight: 700 }}>★ Must see</span>
+            <br/>The border color shows {person}'s pick type. Initial chips show everyone interested; busy sets collapse extras into a +N marker.
           </div>
-          <button onClick={download} disabled={!preview} style={{ padding: "14px 18px", border: 0, borderRadius: 4, background: "#E8C77A", color: "#0E0B08", fontSize: 14, fontWeight: 800, cursor: preview ? "pointer" : "wait" }}>
-            Download phone PNG
-          </button>
+          <div style={{ display: "grid", gap: 8 }}>
+            <button onClick={shareToPhotos} disabled={!preview} style={{ padding: "14px 18px", border: 0, borderRadius: 4, background: "#E8C77A", color: "#0E0B08", fontSize: 14, fontWeight: 800, cursor: preview ? "pointer" : "wait" }}>
+              Save/share to Photos
+            </button>
+            <button onClick={download} disabled={!preview} style={{ padding: "11px 18px", borderRadius: 4, background: "transparent", color: "rgba(244,234,216,0.7)", border: "1px solid rgba(255,255,255,0.14)", fontSize: 13, fontWeight: 700, cursor: preview ? "pointer" : "wait" }}>
+              Download to Files instead
+            </button>
+          </div>
+          <div style={{ fontSize: 11, lineHeight: 1.5, color: "rgba(244,234,216,0.4)" }}>
+            On iPhone, tap “Save Image” in the share sheet to add it to Photos.
+          </div>
         </div>
         <div style={{ display: "flex", justifyContent: "center", minHeight: 420 }}>
           {preview ? <img src={preview} alt={`${day} schedule screensaver preview`} style={{ width: "100%", maxWidth: 310, display: "block", borderRadius: 18, boxShadow: "0 18px 50px rgba(0,0,0,0.5)" }}/> : <div style={{ color: "rgba(244,234,216,0.45)" }}>Rendering preview…</div>}

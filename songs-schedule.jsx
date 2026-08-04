@@ -154,7 +154,7 @@ function FilterDD({ label, value, onChange, options }) {
 // Schedule view
 // =================================================================
 
-function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
+function ScheduleView({ state, dispatch, currentUser, onArtistClick, onToast }) {
   const [day, setDay] = useStateS("Friday");
   const [filter, setFilter] = useStateS("all"); // all | mine | group
   const [exportOpen, setExportOpen] = useStateS(false);
@@ -225,6 +225,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
         state={state}
         currentUser={currentUser}
         initialDay={day}
+        onToast={onToast}
       />
 
       {/* Legend */}

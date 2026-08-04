@@ -376,6 +376,7 @@ function App() {
             dispatch={dispatch}
             currentUser={currentUser}
             onArtistClick={a => setActiveArtist(a)}
+            onToast={message => setToast({ message, kind: "info" })}
           />
         )}
         {tab === "vibe" && (
