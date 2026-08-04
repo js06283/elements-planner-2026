@@ -20,6 +20,50 @@
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
     select option { background: #15110D; color: #F4EAD8; }
+    @media (max-width: 700px) {
+      .app-header-inner { padding: 12px 14px 8px !important; gap: 10px !important; flex-wrap: wrap; }
+      .app-wordmark { order: 1; }
+      .app-profile { order: 2; margin-left: auto; }
+      .app-profile button { padding-right: 8px !important; }
+      .app-profile-name, .app-profile-chevron { display: none; }
+      .app-nav { order: 3; width: 100%; flex: none !important; display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 0 !important; }
+      .app-nav button { padding: 9px 3px !important; font-size: 12px !important; }
+      .app-main { padding: 12px 14px 56px !important; }
+      .app-footer { padding: 20px 14px 28px !important; gap: 8px !important; }
+      .app-footer span:nth-child(2) { display: none; }
+
+      .mobile-modal { padding: 0 !important; align-items: flex-end !important; }
+      .mobile-modal-card { max-height: 94dvh !important; border-radius: 14px 14px 0 0 !important; border-bottom: 0 !important; }
+      .mobile-sheet { max-height: 94dvh !important; }
+      .mobile-sheet-heading { padding: 6px 16px 14px !important; }
+      .mobile-sheet-heading h2 { font-size: 24px !important; }
+      .mobile-sheet-body { padding: 0 16px 20px !important; }
+      .profile-picker-grid { grid-template-columns: 1fr !important; max-height: 58dvh; overflow-y: auto; }
+
+      .song-page-title { font-size: 28px !important; line-height: 1.05; }
+      .song-stats { grid-template-columns: repeat(2, 1fr) !important; }
+      .song-controls { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px !important; }
+      .song-search { grid-column: 1 / -1; min-width: 0 !important; width: 100%; }
+      .song-filter { display: block !important; min-width: 0; }
+      .song-filter > span { display: block; margin-bottom: 5px; }
+      .song-filter select { width: 100%; }
+      .song-groups { grid-template-columns: minmax(0, 1fr) !important; gap: 12px !important; }
+      .song-row { grid-template-columns: 44px minmax(0, 1fr) auto 20px !important; gap: 6px !important; padding: 9px 7px !important; }
+      .song-row .song-actions { gap: 4px !important; }
+      .song-row .song-actions > div:first-child { display: none !important; }
+
+      .discovery-filters { gap: 12px !important; }
+      .discovery-sort { margin-left: 0 !important; width: 100%; justify-content: space-between; }
+      .discovery-stats { grid-template-columns: repeat(2, 1fr) !important; }
+      .discovery-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; }
+
+      .schedule-toolbar { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px !important; }
+      .schedule-toolbar .song-filter { width: 100%; }
+      .schedule-export-button { grid-column: 1 / -1; width: 100%; }
+      .schedule-meta { display: none !important; }
+      .schedule-legend { gap: 8px 12px !important; font-size: 9px !important; }
+      .schedule-timeline { margin-left: -14px; margin-right: -14px; border-left: 0 !important; border-right: 0 !important; }
+    }
   </style>
 </head>
 <body>

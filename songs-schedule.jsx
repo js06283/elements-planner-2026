@@ -61,11 +61,11 @@ function SongsView({ state, dispatch, currentUser, onAddSong }) {
     <div>
       <div style={{ padding: "22px 0 20px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.15em", color: "#E8C77A", marginBottom: 8 }}>GROUP SONGBOOK</div>
-        <h1 style={{ margin: 0, fontFamily: "'Bricolage Grotesque', serif", fontSize: 34, letterSpacing: "-0.025em" }}>Songs worth hearing before the festival</h1>
+        <h1 className="song-page-title" style={{ margin: 0, fontFamily: "'Bricolage Grotesque', serif", fontSize: 34, letterSpacing: "-0.025em" }}>Songs worth hearing before the festival</h1>
         <p style={{ margin: "8px 0 0", color: "rgba(244,234,216,0.55)", fontSize: 14 }}>Browse what the crew added, grouped by artist. Heart the tracks you want in rotation.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 20 }}>
+      <div className="song-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 20 }}>
         <SongLibraryStat label="Songs" value={allSongs.length}/>
         <SongLibraryStat label="Artists" value={new Set(allSongs.map(s => s.artistId)).size}/>
         <SongLibraryStat label="Contributors" value={new Set(allSongs.map(s => s.addedBy).filter(Boolean)).size}/>
@@ -73,12 +73,12 @@ function SongsView({ state, dispatch, currentUser, onAddSong }) {
       </div>
 
       {/* Library controls */}
-      <div style={{
+      <div className="song-controls" style={{
         display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
         padding: "20px 0", borderBottom: "1px solid rgba(255,255,255,0.06)",
         marginBottom: 24,
       }}>
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search songs or artists…" style={{ minWidth: 240, flex: "1 1 260px", padding: "9px 12px", background: "rgba(255,255,255,0.04)", color: "#F4EAD8", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, fontSize: 13 }}/>
+        <input className="song-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search songs or artists…" style={{ minWidth: 240, flex: "1 1 260px", padding: "9px 12px", background: "rgba(255,255,255,0.04)", color: "#F4EAD8", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, fontSize: 13 }}/>
         <FilterDD label="Added by" value={filterPerson} onChange={setFilterPerson} options={people}/>
         <FilterDD label="Genre" value={filterGenre} onChange={setFilterGenre} options={genres}/>
         <FilterDD label="Sort" value={sort} onChange={setSort} options={[
@@ -98,7 +98,7 @@ function SongsView({ state, dispatch, currentUser, onAddSong }) {
           No songs match. Try clearing filters, or head to Discovery to add some.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(420px, 100%), 1fr))", gap: 18 }}>
+        <div className="song-groups" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(420px, 100%), 1fr))", gap: 18 }}>
           {artistGroups.map(({ artist, songs }) => {
             const tint = window.STAGE_TINTS[artist.stage];
             return <section key={artist.id} style={{ background: "#15110D", border: "1px solid rgba(255,255,255,0.07)", borderTop: `3px solid ${tint.fg}` }}>
@@ -131,7 +131,7 @@ function SongLibraryStat({ label, value }) {
 function FilterDD({ label, value, onChange, options }) {
   const opts = options.map(o => typeof o === "string" ? { v: o, l: o } : o);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div className="song-filter" style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{
         fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
         color: "rgba(244, 234, 216, 0.45)", letterSpacing: "0.14em",
@@ -183,7 +183,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
 
   return (
     <div>
-      <div style={{
+      <div className="schedule-toolbar" style={{
         padding: "20px 0", display: "flex", flexWrap: "wrap", gap: 16,
         alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.06)",
         marginBottom: 24,
@@ -194,14 +194,14 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
           { v: "mine", l: "My picks" },
           { v: "group", l: "Group picks" },
         ]}/>
-        <button onClick={() => setExportOpen(true)} style={{
+        <button className="schedule-export-button" onClick={() => setExportOpen(true)} style={{
           padding: "9px 13px", borderRadius: 4,
           background: "rgba(232, 199, 122, 0.1)", color: "#E8C77A",
           border: "1px solid rgba(232, 199, 122, 0.35)",
           fontFamily: "'Inter Tight', sans-serif", fontSize: 12, fontWeight: 700,
           cursor: "pointer",
         }}>Export screensaver</button>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="schedule-meta" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
             color: "rgba(244, 234, 216, 0.45)", letterSpacing: "0.14em",
@@ -228,7 +228,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
       />
 
       {/* Legend */}
-      <div style={{
+      <div className="schedule-legend" style={{
         display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 20,
         fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
         color: "rgba(244, 234, 216, 0.5)",
@@ -241,7 +241,7 @@ function ScheduleView({ state, dispatch, currentUser, onArtistClick }) {
       </div>
 
       {/* Timeline grid */}
-      <div style={{
+      <div className="schedule-timeline" style={{
         background: "#15110D", border: "1px solid rgba(255,255,255,0.06)",
         overflowX: "auto",
       }}>

@@ -34,7 +34,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
   return (
     <div>
       {/* Filter bar */}
-      <div style={{
+      <div className="discovery-filters" style={{
         display: "flex", flexWrap: "wrap", gap: 16,
         padding: "20px 0", borderBottom: "1px solid rgba(255,255,255,0.06)",
         marginBottom: 28,
@@ -42,7 +42,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
         <FilterPills label="Day" value={day} onChange={setDay} options={days}/>
         <StagePills value={stage} onChange={setStage}/>
         <FilterDropdown label="Genre" value={genre} onChange={setGenre} options={genres}/>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
+        <div className="discovery-sort" style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
             color: "rgba(244, 234, 216, 0.4)", letterSpacing: "0.14em",
@@ -56,7 +56,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
       </div>
 
       {/* Stats strip */}
-      <div style={{
+      <div className="discovery-stats" style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
         gap: 1, marginBottom: 28, background: "rgba(255,255,255,0.06)",
         border: "1px solid rgba(255,255,255,0.06)",
@@ -68,7 +68,7 @@ function DiscoveryView({ state, dispatch, onArtistClick, onAddSong, currentUser 
       </div>
 
       {/* Artist grid */}
-      <div style={{
+      <div className="discovery-grid" style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
         gap: 24,

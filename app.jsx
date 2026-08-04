@@ -352,7 +352,7 @@ function App() {
       />
 
       {/* Body */}
-      <div style={{ position: "relative", zIndex: 2, maxWidth: 1320, margin: "0 auto", padding: "24px 28px 80px" }}>
+      <div className="app-main" style={{ position: "relative", zIndex: 2, maxWidth: 1320, margin: "0 auto", padding: "24px 28px 80px" }}>
         {tab === "discovery" && (
           <window.DiscoveryView
             state={state}
@@ -392,7 +392,7 @@ function App() {
       </div>
 
       {/* Footer mini-info */}
-      <div style={{
+      <div className="app-footer" style={{
         position: "relative", zIndex: 2, maxWidth: 1320, margin: "0 auto",
         padding: "24px 28px 40px",
         borderTop: "1px solid rgba(255,255,255,0.05)",
@@ -468,13 +468,13 @@ function Header({ tab, setTab, currentUser, onPickProfile }) {
       backdropFilter: "blur(20px)",
       borderBottom: "1px solid rgba(255,255,255,0.06)",
     }}>
-      <div style={{
+      <div className="app-header-inner" style={{
         maxWidth: 1320, margin: "0 auto",
         padding: "18px 28px",
         display: "flex", alignItems: "center", gap: 28,
       }}>
         {/* Wordmark */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexShrink: 0 }}>
+        <div className="app-wordmark" style={{ display: "flex", alignItems: "baseline", gap: 10, flexShrink: 0 }}>
           <span style={{
             fontFamily: "'Bricolage Grotesque', serif", fontWeight: 800,
             fontSize: 22, color: "#F4EAD8", letterSpacing: "-0.025em",
@@ -487,7 +487,7 @@ function Header({ tab, setTab, currentUser, onPickProfile }) {
         </div>
 
         {/* Tabs */}
-        <nav style={{ display: "flex", gap: 4, flex: 1 }}>
+        <nav className="app-nav" style={{ display: "flex", gap: 4, flex: 1 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => !t.disabled && setTab(t.id)} style={{
               padding: "8px 14px", border: "none",
@@ -505,7 +505,7 @@ function Header({ tab, setTab, currentUser, onPickProfile }) {
         </nav>
 
         {/* Right cluster */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="app-profile" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onPickProfile} style={{
             padding: "5px 14px 5px 6px", borderRadius: 999,
             background: "rgba(255,255,255,0.06)",
@@ -515,9 +515,9 @@ function Header({ tab, setTab, currentUser, onPickProfile }) {
             fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
           }}>
             <window.Avatar name={currentUser} size={26}/>
-            {currentUser}
+            <span className="app-profile-name">{currentUser}</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              style={{ opacity: 0.5 }}><polyline points="6 9 12 15 18 9"/></svg>
+              className="app-profile-chevron" style={{ opacity: 0.5 }}><polyline points="6 9 12 15 18 9"/></svg>
           </button>
         </div>
       </div>
@@ -561,7 +561,7 @@ function ProfileModal({ open, currentUser, required, extraFriends, onAddFriend, 
           {required ? "Choose your name to get started." : "Your fans + songs are tied to this name across every tab."}
         </p>
       </div>
-      <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+      <div className="profile-picker-grid" style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
         {allFriends.map(f => (
           <button key={f.name} onClick={() => onPick(f.name)} style={{
             display: "flex", alignItems: "center", gap: 12,

@@ -148,13 +148,13 @@ function Modal({ open, onClose, children, maxWidth = 720, required = false }) {
   }, [open, onClose, required]);
   if (!open) return null;
   return (
-    <div onClick={required ? undefined : onClose} style={{
+    <div className="mobile-modal" onClick={required ? undefined : onClose} style={{
       position: "fixed", inset: 0, zIndex: 200,
       background: "rgba(8, 5, 3, 0.7)", backdropFilter: "blur(8px)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: 24,
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div className="mobile-modal-card" onClick={e => e.stopPropagation()} style={{
         width: "100%", maxWidth, maxHeight: "calc(100vh - 48px)",
         background: "#15110D", border: "1px solid rgba(255,255,255,0.08)",
         borderRadius: 4, overflow: "hidden",
@@ -185,7 +185,7 @@ function Sheet({ open, onClose, title, subtitle, children }) {
         pointerEvents: open ? "auto" : "none",
         transition: "opacity 0.25s, backdrop-filter 0.25s",
       }}/>
-      <div style={{
+      <div className="mobile-sheet" style={{
         position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200,
         background: "#15110D", borderTop: "1px solid rgba(255,255,255,0.08)",
         borderRadius: "12px 12px 0 0",
@@ -200,7 +200,7 @@ function Sheet({ open, onClose, title, subtitle, children }) {
           <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }}/>
         </div>
         {title && (
-          <div style={{ padding: "8px 28px 18px" }}>
+          <div className="mobile-sheet-heading" style={{ padding: "8px 28px 18px" }}>
             <h2 style={{
               fontFamily: "'Bricolage Grotesque', serif", fontWeight: 700,
               fontSize: 28, lineHeight: 1.05, color: "#F4EAD8", margin: 0,
@@ -211,7 +211,7 @@ function Sheet({ open, onClose, title, subtitle, children }) {
             )}
           </div>
         )}
-        <div style={{ overflowY: "auto", flex: 1, padding: "0 28px 28px" }}>
+        <div className="mobile-sheet-body" style={{ overflowY: "auto", flex: 1, padding: "0 28px 28px" }}>
           {children}
         </div>
       </div>

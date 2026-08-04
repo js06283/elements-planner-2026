@@ -359,7 +359,7 @@ function SongRow({ song, currentUser, onHeart, onRemove, showArtist = false }) {
   const addedByFriend = window.FRIENDS.find(f => f.name === song.addedBy);
 
   return (
-    <div style={{
+    <div className="song-row" style={{
       display: "grid",
       gridTemplateColumns: "44px 1fr auto auto",
       alignItems: "center", gap: 12,
@@ -385,7 +385,7 @@ function SongRow({ song, currentUser, onHeart, onRemove, showArtist = false }) {
           {song.duration && <span> · {song.duration}</span>}
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="song-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {song.addedBy && (
           <div title={`Added by ${song.addedBy}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <window.Avatar name={song.addedBy} size={18}/>
